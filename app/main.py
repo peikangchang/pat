@@ -92,10 +92,11 @@ async def health():
     return {"status": "healthy"}
 
 
-# Import and include routers (will be added later)
-# from app.api.v1 import auth, tokens, workspaces, users, fcs
-# app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
-# app.include_router(tokens.router, prefix="/api/v1", tags=["tokens"])
-# app.include_router(workspaces.router, prefix="/api/v1", tags=["workspaces"])
-# app.include_router(users.router, prefix="/api/v1", tags=["users"])
-# app.include_router(fcs.router, prefix="/api/v1", tags=["fcs"])
+# Import and include routers
+from app.api.v1 import auth, tokens, workspaces, users, fcs
+
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+app.include_router(tokens.router, prefix="/api/v1", tags=["tokens"])
+app.include_router(workspaces.router, prefix="/api/v1", tags=["workspaces"])
+app.include_router(users.router, prefix="/api/v1", tags=["users"])
+app.include_router(fcs.router, prefix="/api/v1", tags=["fcs"])

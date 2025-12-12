@@ -134,11 +134,10 @@ class FCSUsecase:
                 os.remove(file_path)
             raise ValidationException(f"Failed to parse FCS file: {str(e)}")
 
-    async def get_parameters(self, file_id: str, user_id: UUID, scopes: list[str]) -> dict:
-        """Get FCS file parameters.
+    async def get_parameters(self, user_id: UUID, scopes: list[str]) -> dict:
+        """Get FCS file parameters from latest file.
 
         Args:
-            file_id: File ID
             user_id: User UUID
             scopes: User's granted scopes
 
@@ -146,18 +145,14 @@ class FCSUsecase:
             Parameter list
 
         Raises:
-            NotFoundException: If file not found
-            ForbiddenException: If file doesn't belong to user
+            NotFoundException: If no file found
         """
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_file_with_parameters(file_id)
+        fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
         if not fcs_file:
-            raise NotFoundException("FCS file not found")
-
-        if fcs_file.user_id != user_id:
-            raise ForbiddenException("Access denied to this file")
+            raise NotFoundException("No FCS file found")
 
         parameters = [
             {
@@ -171,7 +166,7 @@ class FCSUsecase:
         ]
 
         return {
-            "endpoint": f"/api/v1/fcs/{file_id}/parameters",
+            "endpoint": "/api/v1/fcs/parameters",
             "method": "GET",
             "required_scope": required_scope,
             "granted_by": granted_by,
@@ -181,12 +176,11 @@ class FCSUsecase:
         }
 
     async def get_events(
-        self, file_id: str, user_id: UUID, scopes: list[str], limit: int = 100, offset: int = 0
+        self, user_id: UUID, scopes: list[str], limit: int = 100, offset: int = 0
     ) -> dict:
-        """Get FCS file events (data).
+        """Get FCS file events (data) from latest file.
 
         Args:
-            file_id: File ID
             user_id: User UUID
             scopes: User's granted scopes
             limit: Max number of events to return
@@ -196,18 +190,14 @@ class FCSUsecase:
             Event data
 
         Raises:
-            NotFoundException: If file not found
-            ForbiddenException: If file doesn't belong to user
+            NotFoundException: If no file found
         """
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_file_by_file_id(file_id)
+        fcs_file = await self.fcs_repo.get_latest_file(user_id)
         if not fcs_file:
-            raise NotFoundException("FCS file not found")
-
-        if fcs_file.user_id != user_id:
-            raise ForbiddenException("Access denied to this file")
+            raise NotFoundException("No FCS file found")
 
         # Parse FCS file to get events
         _, data = fcsparser.parse(fcs_file.file_path, reformat_meta=True)
@@ -219,7 +209,7 @@ class FCSUsecase:
         events = events_subset.to_dict(orient='records')
 
         return {
-            "endpoint": f"/api/v1/fcs/{file_id}/events",
+            "endpoint": "/api/v1/fcs/events",
             "method": "GET",
             "required_scope": required_scope,
             "granted_by": granted_by,
@@ -229,11 +219,10 @@ class FCSUsecase:
             "events": events,
         }
 
-    async def get_statistics(self, file_id: str, user_id: UUID, scopes: list[str]) -> dict:
-        """Get FCS file statistics.
+    async def get_statistics(self, user_id: UUID, scopes: list[str]) -> dict:
+        """Get FCS file statistics from latest file.
 
         Args:
-            file_id: File ID
             user_id: User UUID
             scopes: User's granted scopes
 
@@ -241,18 +230,14 @@ class FCSUsecase:
             Statistics for all parameters
 
         Raises:
-            NotFoundException: If file not found
-            ForbiddenException: If file doesn't belong to user
+            NotFoundException: If no file found
         """
         required_scope = "fcs:analyze"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_file_with_parameters(file_id)
+        fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
         if not fcs_file:
-            raise NotFoundException("FCS file not found")
-
-        if fcs_file.user_id != user_id:
-            raise ForbiddenException("Access denied to this file")
+            raise NotFoundException("No FCS file found")
 
         # Parse FCS file
         _, data = fcsparser.parse(fcs_file.file_path, reformat_meta=True)
@@ -274,7 +259,7 @@ class FCSUsecase:
             })
 
         return {
-            "endpoint": f"/api/v1/fcs/{file_id}/statistics",
+            "endpoint": "/api/v1/fcs/statistics",
             "method": "GET",
             "required_scope": required_scope,
             "granted_by": granted_by,

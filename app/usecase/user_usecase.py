@@ -86,7 +86,7 @@ class UserUsecase:
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": f"/api/v1/users/{user_id}",
+            "endpoint": "/api/v1/users/me",
             "method": "PUT",
             "required_scope": required_scope,
             "granted_by": granted_by,

@@ -144,6 +144,41 @@ class FCSRepository:
         )
         return list(result.scalars().all())
 
+    async def get_latest_file(self, user_id: UUID) -> FCSFile | None:
+        """Get the latest FCS file for a user.
+
+        Args:
+            user_id: User UUID
+
+        Returns:
+            Latest FCSFile object if found, None otherwise
+        """
+        result = await self.session.execute(
+            select(FCSFile)
+            .where(FCSFile.user_id == user_id)
+            .order_by(FCSFile.uploaded_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_latest_file_with_parameters(self, user_id: UUID) -> FCSFile | None:
+        """Get the latest FCS file for a user with parameters.
+
+        Args:
+            user_id: User UUID
+
+        Returns:
+            Latest FCSFile object with parameters loaded, None if not found
+        """
+        result = await self.session.execute(
+            select(FCSFile)
+            .options(selectinload(FCSFile.parameters))
+            .where(FCSFile.user_id == user_id)
+            .order_by(FCSFile.uploaded_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get_parameters_by_file(self, fcs_file_id: UUID) -> list[FCSParameter]:
         """Get all parameters for a file.
 

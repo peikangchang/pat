@@ -79,7 +79,7 @@ def create_access_token(user_id: UUID, expires_delta: timedelta | None = None) -
         Encoded JWT token string
     """
     if expires_delta is None:
-        expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+        expires_delta = timedelta(minutes=settings.jwt_expire_minutes)
 
     now = datetime.now(timezone.utc)
     expire = now + expires_delta
@@ -92,8 +92,8 @@ def create_access_token(user_id: UUID, expires_delta: timedelta | None = None) -
 
     encoded_jwt = jwt.encode(
         payload.model_dump(),
-        settings.secret_key,
-        algorithm=settings.algorithm,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
     )
 
     return encoded_jwt
@@ -111,8 +111,8 @@ def decode_access_token(token: str) -> JWTPayload | None:
     try:
         payload_dict = jwt.decode(
             token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
         )
         return JWTPayload(**payload_dict)
     except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):

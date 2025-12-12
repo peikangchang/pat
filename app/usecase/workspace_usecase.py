@@ -141,3 +141,30 @@ class WorkspaceUsecase:
             "message": "This is a stub implementation",
             "deleted": True,
         }
+
+    async def update_workspace_settings(self, workspace_id: str, scopes: list[str]) -> dict:
+        """Update workspace settings (stub).
+
+        Args:
+            workspace_id: Workspace ID
+            scopes: User's granted scopes
+
+        Returns:
+            Mock settings update result
+        """
+        required_scope = "workspaces:admin"
+        granted_by = self._find_granted_by(scopes, required_scope)
+
+        return {
+            "endpoint": f"/api/v1/workspaces/{workspace_id}/settings",
+            "method": "PUT",
+            "required_scope": required_scope,
+            "granted_by": granted_by,
+            "your_scopes": scopes,
+            "message": "This is a stub implementation",
+            "settings": {
+                "theme": "dark",
+                "notifications": True,
+                "auto_save": True,
+            },
+        }

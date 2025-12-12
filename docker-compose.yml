@@ -1,0 +1,97 @@
+x-pat-image: &pat_image
+  image: pat:${APP_VERSION}
+
+x-pat-build: &pat_build
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: pat:${APP_VERSION}
+
+services:
+  # PostgreSQL 資料庫
+  postgres:
+    image: postgres:16-alpine
+    container_name: pat_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pat_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pat_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pat_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pat_user} -d ${POSTGRES_DB:-pat_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pat_network
+
+  # Migration service (執行完就退出)
+  migration:
+    <<: *pat_build
+    container_name: pat_migration
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-pat_user}:${POSTGRES_PASSWORD:-pat_password}@postgres:5432/${POSTGRES_DB:-pat_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-this-in-production}
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pat_network
+    volumes:
+      - ./migrations:/app/migrations
+
+  # FastAPI 應用程式
+  app:
+    <<: *pat_image
+    container_name: pat_app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-pat_user}:${POSTGRES_PASSWORD:-pat_password}@postgres:5432/${POSTGRES_DB:-pat_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-this-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      DEBUG: ${DEBUG:-true}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    volumes:
+      # 掛載程式碼以支援熱重載（開發模式）
+      - ./app:/app/app
+      - ./uploads:/app/uploads
+    networks:
+      - pat_network
+    restart: unless-stopped
+
+  # pgAdmin (可選的資料庫管理界面)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pat_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@pat.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - postgres
+    networks:
+      - pat_network
+    profiles:
+      - tools  # 使用 --profile tools 才會啟動
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  pat_network:
+    driver: bridge
