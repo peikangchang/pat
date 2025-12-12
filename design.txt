@@ -1,0 +1,237 @@
+該專案要用來設計一個簡單的 PAT (personal access token) 權限控管系統。以下是需求描述
+0. 使用技術
+  - FastAPI
+  - PostgreSQL
+  - pytest
+1. 三大主要核心功能
+  A. 使用者登入 -> 取得 JWT session token
+  B. 使用 JWT token -> 建立 PAT
+  C. 使用 PAT -> 存取受保護資源
+2. PAT 細節描述
+  A. token 管理
+    - 使用者可以建立、列出、撤銷 PAT tokens
+    - Token 屬性有以下，唯一識別碼、名稱、建立日期、到期日期、最後使用時間、權限範圍
+    - 到期時間選項有以下，30天、90天、1年、自訂
+    - Token 格式：`pat_` 前綴 + 隨機字串 (如：pat_34n18asnfa8fu..)
+  B. 權限控制(全域、階層式結構)
+    | 資源名稱 | 權限階層(高 -> 低) |
+    |----------|--------------------|
+    | workspacess | admin -> delete -> write -> read |
+    | users | write -> read |
+    | fcs | analyze -> write -> read |
+
+    **規則** 高階權限會包含低階權限，各個資源之間的權限是獨立分開的
+  C. token audit log (記錄每次 token 的使用記錄)
+    - token ID
+    - 呼叫時間
+    - 來源 IP
+    - 請求端點與方法
+    - 回應狀態碼
+    - 是否授權成功
+3. 安全性
+  - token 儲存：SHA-256 雜湊 + 前 8 字元明文作為檢索前綴
+  - token 顯示：僅在建立時顯示一次完整內容
+  - rate limiting：基於 IP，每分鐘 60 次請求
+  - 密碼儲存：argon2
+4. API 設計
+  A. 認證
+  ```
+  POST /api/v1/auth/register  # 註冊
+  POST /api/v1/auth/login     # 登入，回傳 JWT
+  ```
+  B. PAT token 管理 (需要 JWT)
+  ```
+  POST   /api/v1/tokens            # 建立 PAT，回傳完整一次 token
+  GET    /api/v1/tokens            # 列出所有 PAT，僅顯示 prefix
+  GET    /api/v1/tokens/{id}       # 取得單一 PAT
+  DELETE /api/v1/tokens/{id}       # 撤銷單一 PAT
+  GET    /api/v1/tokens/{id}/logs  # 取得該 PAT 的 audit log
+  ```
+  C. 資源存取 (需要 PAT)
+    - workspacess (以 stub 實作)
+    ```
+    GET    /api/v1/workspacess                # PAT 要有 workspacess:read
+    POST   /api/v1/workspacess                # PAT 要有 workspacess:write
+    DELETE /api/v1/workspacess/{id}           # PAT 要有 workspacess:delete
+    PUT    /api/v1/workspacess/{id}/settings  # PAT 要有 workspacess:admin
+    ```
+    - users (以 stub 實作)
+    ```
+    GET /api/v1/users/me  # PAT 要有 users:read
+    PUT /api/v1/users/me  # PAT 要有 users:write
+    ```
+    - fcs (實作)
+    ```
+    GET  /api/v1/fcs/parameters  # PAT 要有 fcs:read，列出所有 PnN/PnS 參數
+    GET  /api/v1/fcs/events      # PAT 要有 fcs:read，取得所有 events
+    POST /api/v1/fcs/upload      # PAT 要有 fcs:write，上傳 FCS 檔案
+    GET  /api/v1/fcs/statistics  # PAT 要有 fcs:analyze，取得統計資料
+    ```
+  D. Audit log API response
+  ```json
+  {
+      "success": true,
+      "data": {
+          "token_id": "abc123",
+          "token_name": "DDDD Pipeline",
+          "total_logs": 124,
+          "logs": [
+              {
+                  "timestamp": "2024-10-15T00:11:22Z",
+                  "ip": "192.168.50.111",
+                  "method": "GET",
+                  "endpoint": "/api/v1/fcs/statistics",
+                  "status_code": 200,
+                  "authorized": true
+              },
+              {
+                  "timestamp": "2024-10-15T01:21:32Z",
+                  "ip": "192.168.50.111",
+                  "method": "DELETE",
+                  "endpoint": "/api/v1/workspacess/3",
+                  "status_code": 403,
+                  "authorized": false,
+                  "reason": "Insufficient permissions"
+              }
+          ]
+      }
+  }
+  ```
+  E. Stub API responses
+    - 200
+    ```json
+    {
+        "success": true,
+        "data": {
+            "endpoint": "/api/v1/workspacess",
+            "method": "GET",
+            "required_scope": "workspacess:read",
+            "granted_by": "workspacess:admin",
+            "your_scopes": ["workspacess:admin", "fcs:read"]
+        }
+    }
+    ```
+    - 401
+    ```json
+    {
+        "success": false,
+        "error": "Unauthorized",
+        "message": "Token expired"
+    }
+    {
+        "success": false,
+        "error": "Unauthorized",
+        "message": "Token revoked"
+    }
+    {
+        "success": false,
+        "error": "Unauthorized",
+        "message": "Invalid token"
+    }
+    ```
+    - 403
+    ```json
+    {
+        "success": false,
+        "error": "Forbidden",
+        "data": {
+            "required_scope": "workspacess:read",
+            "your_scopes": ["fcs:read"]
+        }
+    }
+    ```
+    - 429
+    ```json
+    {
+        "success": false,
+        "error": "Too Many Requests",
+        "data": {
+            "retry_after": 45
+        }
+    }
+    ```
+  F. FCS API
+  - GET /api/v1/fcs/parameters
+  ```json
+  {
+      "success": true,
+      "data": {
+          "total_events": 12345,
+          "total_parameters": 26,
+          "parameters": [
+              {"index": 1, "pnn": "FSC-H", "pns": "FSC-H", "range": 16777215, "display": "LIN"},
+              {"index": 2, "pnn": "FSC-A", "pns": "FSC-A", "range": 16777215, "display": "LIN"},
+              {"index": 3, "pnn": "SSC-H", "pns": "SSC-H", "range": 16777215, "display": "LIN"},
+              {"index": 4, "pnn": "SSC-A", "pns": "SSC-A", "range": 16777215, "display": "LIN"},
+              ...
+          ]
+      }
+  }
+  ```
+  - GET /api/v1/fcs/events?limit=100&offset=0
+  ```json
+  {
+      "success": true,
+      "data": {
+          "total_events": 12345,
+          "limit": 100,
+          "offset": 0,
+          "events": [
+              {
+                  "FSC-H": 2500000,
+                  "FSC-A": 2800000,
+                  "SSC-H": 1200000,
+                  "SSC-H": 1350000,
+                  ...
+              }
+          ]
+      }
+  }
+  ```
+  - POST /api/v1/fcs/upload
+  ```json
+  {
+      "success": true,
+      "data": {
+          "file_id": "abczzz",
+          "filename": "example.fcs",
+          "total_events": 12345,
+          "total_parameters": 26
+      }
+  }
+  ```
+  - GET /api/v1/fcs/statistics
+  ```json
+  {
+      "success": true,
+      "data": {
+          "total_events": 12345,
+          "statistics": [
+              {
+                  "parameter": "FSC-A",
+                  "pns": "FSC-A",
+                  "display": "LIN",
+                  "min": 0,
+                  "max": 16777215,
+                  "mean": 3250000.5,
+                  "median": 3100000,
+                  "std": 1250000.5
+              },
+              {
+                  "parameter": "FLA-2",
+                  "pns": "CD4 PE-A",
+                  "display": "LOG",
+                  "min": 0,
+                  "max": 8500000,
+                  "mean": 1250000.7,
+                  "median": 45000,
+                  "std": 280000.2
+              },
+              ...
+          ]
+      }
+  }
+  ```
+5. 其它
+  - 分為幾個主要模塊 auth / pat / workspaces / user / fcs 等
+  - 使用分層式架構來實作。分層有 api / usecase / domain / repository 等
