@@ -85,3 +85,53 @@ pat/
 - PAT Token 管理
 - 權限控制驗證
 - FCS 檔案上傳與分析
+
+## 2025-12-13 - Rate Limiting 實作
+
+### 完成項目
+
+1. **Rate Limiting 設置**
+   - 使用 slowapi 實作 rate limiting
+   - 基於 IP 地址的速率限制
+   - 設定為每分鐘 60 次請求（可透過 .env 配置）
+   - 創建 `app/common/rate_limit.py` 統一管理
+
+2. **應用到關鍵 Endpoints**
+   - Auth API (register, login) - 防止暴力攻擊
+   - Tokens API (create_token) - 防止濫用
+   - 其他 endpoints 因需要 JWT/PAT 認證，已有基本保護
+
+3. **pgAdmin 自動配置**
+   - 創建 pgadmin-servers.json 預設伺服器配置
+   - 創建 pgadmin-pgpass 密碼檔案
+   - 自動在首次啟動時載入 PostgreSQL 連接
+   - 添加 pgadmin_data volume 持久化資料
+
+### 實作細節
+
+**Rate Limiting 配置**
+```python
+# app/common/rate_limit.py
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[f"{settings.rate_limit_per_minute}/minute"]
+)
+```
+
+**使用方式**
+```python
+@router.post("/auth/register")
+@limiter.limit("60/minute")
+async def register(request_obj: Request, ...):
+    ...
+```
+
+### 目前進度
+
+根據原始 10 階段計畫：
+- ✅ Phase 1-7: 基礎架構、Models、Domain、Repository、Usecase、API、Migration、Docker
+- ✅ Phase 8: Rate Limiting 實作
+- ⏳ Phase 9: 測試（待執行）
+- ⏳ Phase 10: 文檔與部署（待完成）
+
+**完成度：約 80%**

@@ -1,11 +1,12 @@
 """Token (PAT) management API endpoints."""
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
+from app.common.rate_limit import limiter
 from app.domain.schemas import TokenCreateRequest
 from app.usecase.token_usecase import TokenUsecase
 from .dependencies import CurrentUser
@@ -14,7 +15,9 @@ router = APIRouter()
 
 
 @router.post("/tokens", response_model=dict)
+@limiter.limit("60/minute")
 async def create_token(
+    request_obj: Request,
     request: TokenCreateRequest,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db),

@@ -1,9 +1,10 @@
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
+from app.common.rate_limit import limiter
 from app.domain.schemas import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse
 from app.usecase.auth_usecase import AuthUsecase
 
@@ -11,7 +12,9 @@ router = APIRouter()
 
 
 @router.post("/auth/register", response_model=dict)
+@limiter.limit("60/minute")
 async def register(
+    request_obj: Request,
     request: UserRegisterRequest,
     session: AsyncSession = Depends(get_db),
 ):
@@ -30,7 +33,9 @@ async def register(
 
 
 @router.post("/auth/login", response_model=dict)
+@limiter.limit("60/minute")
 async def login(
+    request_obj: Request,
     request: UserLoginRequest,
     session: AsyncSession = Depends(get_db),
 ):
