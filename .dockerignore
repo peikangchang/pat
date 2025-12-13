@@ -44,6 +44,10 @@ docker-compose.yml
 .env
 .env.local
 
+# pgAdmin (不需要複製到 image，會用 volume 掛載)
+pgadmin-servers.json
+pgadmin-pgpass
+
 # Uploads (不需要複製到 image，會用 volume 掛載)
 uploads/
 

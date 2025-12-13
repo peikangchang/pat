@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "PAT PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "pat_db",
+      "Username": "pat_user",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}
