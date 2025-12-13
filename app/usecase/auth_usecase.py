@@ -171,15 +171,8 @@ class AuthUsecase:
         # Update last used timestamp
         await self.token_repo.update_last_used(token.id)
 
-        # Log successful access
-        await self.audit_repo.create(
-            token_id=token.id,
-            ip_address=client_ip,
-            method=method,
-            endpoint=endpoint,
-            status_code=200,
-            authorized=True,
-        )
+        # Note: Audit logging is handled by middleware after response is generated
+        # to ensure accurate status code and authorization result
 
         return token, user
 

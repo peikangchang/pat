@@ -69,54 +69,30 @@ class WorkspaceUsecase:
             ],
         }
 
-    async def get_workspace(self, workspace_id: str, scopes: list[str]) -> dict:
-        """Get workspace details (stub).
+    async def create_workspace(self, scopes: list[str]) -> dict:
+        """Create workspace (stub).
 
         Args:
-            workspace_id: Workspace ID
             scopes: User's granted scopes
 
         Returns:
-            Mock workspace details
-        """
-        required_scope = "workspaces:read"
-        granted_by = self._find_granted_by(scopes, required_scope)
-
-        return {
-            "endpoint": f"/api/v1/workspaces/{workspace_id}",
-            "method": "GET",
-            "required_scope": required_scope,
-            "granted_by": granted_by,
-            "your_scopes": scopes,
-            "message": "This is a stub implementation",
-            "workspace": {
-                "id": workspace_id,
-                "name": f"Workspace {workspace_id}",
-                "created_at": "2025-01-01T00:00:00Z",
-            },
-        }
-
-    async def update_workspace(self, workspace_id: str, scopes: list[str]) -> dict:
-        """Update workspace (stub).
-
-        Args:
-            workspace_id: Workspace ID
-            scopes: User's granted scopes
-
-        Returns:
-            Mock update result
+            Mock create result
         """
         required_scope = "workspaces:write"
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": f"/api/v1/workspaces/{workspace_id}",
-            "method": "PUT",
+            "endpoint": "/api/v1/workspaces",
+            "method": "POST",
             "required_scope": required_scope,
             "granted_by": granted_by,
             "your_scopes": scopes,
             "message": "This is a stub implementation",
-            "updated": True,
+            "workspace": {
+                "id": "ws_new_001",
+                "name": "New Workspace",
+                "created_at": "2025-12-13T00:00:00Z",
+            },
         }
 
     async def delete_workspace(self, workspace_id: str, scopes: list[str]) -> dict:

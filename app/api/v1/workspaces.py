@@ -1,6 +1,4 @@
 """Workspace management API endpoints."""
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,57 +36,31 @@ async def list_workspaces(
     return success_response(result)
 
 
-@router.get("/workspaces/{workspace_id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:read"))])
-async def get_workspace(
-    workspace_id: str,
+@router.post("/workspaces", response_model=dict, dependencies=[Depends(require_permission("workspaces:write"))])
+async def create_workspace(
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):
-    """Get workspace details.
-
-    Requires: workspaces:read permission
-
-    Args:
-        workspace_id: Workspace ID
-        token_user: Current token and user
-        session: Database session
-
-    Returns:
-        Success response with workspace details
-    """
-    token, user = token_user
-    usecase = WorkspaceUsecase()
-    result = await usecase.get_workspace(workspace_id, token.scopes)
-    return success_response(result)
-
-
-@router.put("/workspaces/{workspace_id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:write"))])
-async def update_workspace(
-    workspace_id: str,
-    token_user: CurrentTokenUser,
-    session: AsyncSession = Depends(get_db),
-):
-    """Update a workspace.
+    """Create a new workspace.
 
     Requires: workspaces:write permission
 
     Args:
-        workspace_id: Workspace ID
         token_user: Current token and user
         session: Database session
 
     Returns:
-        Success response with update result
+        Success response with created workspace
     """
     token, user = token_user
     usecase = WorkspaceUsecase()
-    result = await usecase.update_workspace(workspace_id, token.scopes)
+    result = await usecase.create_workspace(token.scopes)
     return success_response(result)
 
 
-@router.delete("/workspaces/{workspace_id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:delete"))])
+@router.delete("/workspaces/{id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:delete"))])
 async def delete_workspace(
-    workspace_id: str,
+    id: str,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):
@@ -97,7 +69,7 @@ async def delete_workspace(
     Requires: workspaces:delete permission
 
     Args:
-        workspace_id: Workspace ID
+        id: Workspace ID
         token_user: Current token and user
         session: Database session
 
@@ -106,13 +78,13 @@ async def delete_workspace(
     """
     token, user = token_user
     usecase = WorkspaceUsecase()
-    result = await usecase.delete_workspace(workspace_id, token.scopes)
+    result = await usecase.delete_workspace(id, token.scopes)
     return success_response(result)
 
 
-@router.put("/workspaces/{workspace_id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspaces:admin"))])
+@router.put("/workspaces/{id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspaces:admin"))])
 async def update_workspace_settings(
-    workspace_id: str,
+    id: str,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):
@@ -121,7 +93,7 @@ async def update_workspace_settings(
     Requires: workspaces:admin permission
 
     Args:
-        workspace_id: Workspace ID
+        id: Workspace ID
         token_user: Current token and user
         session: Database session
 
@@ -130,5 +102,5 @@ async def update_workspace_settings(
     """
     token, user = token_user
     usecase = WorkspaceUsecase()
-    result = await usecase.update_workspace_settings(workspace_id, token.scopes)
+    result = await usecase.update_workspace_settings(id, token.scopes)
     return success_response(result)

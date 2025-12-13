@@ -52,7 +52,7 @@ async def get_current_token_from_pat(
 ) -> tuple[Token, User]:
     """Get current token and user from PAT.
 
-    This also creates an audit log entry.
+    Stores token info in request.state for audit logging by middleware.
 
     Args:
         request: FastAPI request object
@@ -88,6 +88,14 @@ async def get_current_token_from_pat(
         method=method,
         endpoint=endpoint,
     )
+
+    # Store token info in request state for audit logging middleware
+    request.state.pat_audit_info = {
+        "token_id": token.id,
+        "ip_address": client_ip,
+        "method": method,
+        "endpoint": endpoint,
+    }
 
     return token, user
 

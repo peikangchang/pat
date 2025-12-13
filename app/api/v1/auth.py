@@ -14,40 +14,42 @@ router = APIRouter()
 @router.post("/auth/register", response_model=dict)
 @limiter.limit("60/minute")
 async def register(
-    request_obj: Request,
-    request: UserRegisterRequest,
+    request: Request,
+    user_request: UserRegisterRequest,
     session: AsyncSession = Depends(get_db),
 ):
     """Register a new user.
 
     Args:
-        request: User registration request
+        request: FastAPI Request object (for rate limiting)
+        user_request: User registration request
         session: Database session
 
     Returns:
         Success response with user info
     """
     usecase = AuthUsecase(session)
-    user = await usecase.register(request)
+    user = await usecase.register(user_request)
     return success_response(user.model_dump())
 
 
 @router.post("/auth/login", response_model=dict)
 @limiter.limit("60/minute")
 async def login(
-    request_obj: Request,
-    request: UserLoginRequest,
+    request: Request,
+    login_request: UserLoginRequest,
     session: AsyncSession = Depends(get_db),
 ):
     """Login and get JWT access token.
 
     Args:
-        request: User login request
+        request: FastAPI Request object (for rate limiting)
+        login_request: User login request
         session: Database session
 
     Returns:
         Success response with access token
     """
     usecase = AuthUsecase(session)
-    token = await usecase.login(request)
+    token = await usecase.login(login_request)
     return success_response(token.model_dump())

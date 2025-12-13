@@ -17,15 +17,16 @@ router = APIRouter()
 @router.post("/tokens", response_model=dict)
 @limiter.limit("60/minute")
 async def create_token(
-    request_obj: Request,
-    request: TokenCreateRequest,
+    request: Request,
+    token_request: TokenCreateRequest,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db),
 ):
     """Create a new PAT token.
 
     Args:
-        request: Token creation request
+        request: FastAPI Request object (for rate limiting)
+        token_request: Token creation request
         current_user: Current authenticated user
         session: Database session
 
@@ -33,7 +34,7 @@ async def create_token(
         Success response with token info (includes full token, shown only once)
     """
     usecase = TokenUsecase(session)
-    token = await usecase.create_token(current_user.id, request)
+    token = await usecase.create_token(current_user.id, token_request)
     return success_response(token.model_dump())
 
 

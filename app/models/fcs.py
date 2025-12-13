@@ -17,7 +17,7 @@ class FCSFile(Base):
     file_path = Column(String(500), nullable=False)  # Path to stored file
     total_events = Column(Integer, nullable=False)
     total_parameters = Column(Integer, nullable=False)
-    uploaded_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    uploaded_at = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
 
     # Relationships
     user = relationship("User", back_populates="fcs_files")

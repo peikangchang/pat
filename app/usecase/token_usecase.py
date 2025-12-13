@@ -219,3 +219,50 @@ class TokenUsecase:
                 for log in logs
             ],
         }
+
+    async def log_token_usage(
+        self,
+        token_id: UUID,
+        ip_address: str,
+        method: str,
+        endpoint: str,
+        status_code: int,
+        authorized: bool,
+        reason: str | None = None,
+    ):
+        """Log token usage to audit log.
+
+        This method uses a separate session to ensure the audit log is persisted
+        even if the main request transaction fails.
+
+        Args:
+            token_id: Token UUID
+            ip_address: Client IP address
+            method: HTTP method
+            endpoint: API endpoint
+            status_code: Final HTTP response status code
+            authorized: Whether the request was authorized (2xx status)
+            reason: Optional reason for failure
+        """
+        from app.common.database import async_session_maker
+
+        # Use a separate session for audit logging to ensure it persists
+        # regardless of the main request transaction outcome
+        async with async_session_maker() as audit_session:
+            try:
+                audit_repo = AuditLogRepository(audit_session)
+                await audit_repo.create(
+                    token_id=token_id,
+                    ip_address=ip_address,
+                    method=method,
+                    endpoint=endpoint,
+                    status_code=status_code,
+                    authorized=authorized,
+                    reason=reason,
+                )
+                await audit_session.commit()
+            except Exception:
+                await audit_session.rollback()
+                # Don't let audit logging errors affect the response
+                # Just silently fail (could log to application logs in production)
+                pass

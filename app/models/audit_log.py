@@ -12,7 +12,7 @@ class AuditLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid7)
     token_id = Column(UUID(as_uuid=True), ForeignKey("tokens.id", ondelete="CASCADE"), nullable=False)
-    timestamp = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP"), index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"), index=True)
     ip_address = Column(String(45), nullable=False)  # IPv6 compatible
     method = Column(String(10), nullable=False)  # GET, POST, etc.
     endpoint = Column(String(255), nullable=False)

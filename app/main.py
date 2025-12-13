@@ -12,6 +12,7 @@ from app.common.database import init_db, close_db
 from app.common.exceptions import AppException
 from app.common.responses import error_response
 from app.common.rate_limit import limiter
+from app.common.audit_middleware import AuditLogMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +43,9 @@ app = FastAPI(
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add audit logging middleware (must be before other middlewares)
+app.add_middleware(AuditLogMiddleware)
 
 # CORS middleware
 app.add_middleware(
