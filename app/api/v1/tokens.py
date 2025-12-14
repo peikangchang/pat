@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
-from app.common.rate_limit import limiter, RATE_LIMIT
+from app.common.rate_limit import limiter
 from app.domain.schemas import TokenCreateRequest
 from app.usecase.token_usecase import TokenUsecase
 from .dependencies import CurrentUser
@@ -15,7 +15,6 @@ router = APIRouter()
 
 
 @router.post("/tokens", response_model=dict)
-@limiter.limit(RATE_LIMIT)
 async def create_token(
     request: Request,
     token_request: TokenCreateRequest,
@@ -39,7 +38,6 @@ async def create_token(
 
 
 @router.get("/tokens", response_model=dict)
-@limiter.limit(RATE_LIMIT)
 async def list_tokens(
     request: Request,
     current_user: CurrentUser,
@@ -60,7 +58,6 @@ async def list_tokens(
 
 
 @router.get("/tokens/{token_id}", response_model=dict)
-@limiter.limit(RATE_LIMIT)
 async def get_token(
     request: Request,
     token_id: UUID,
@@ -83,7 +80,6 @@ async def get_token(
 
 
 @router.delete("/tokens/{token_id}", response_model=dict)
-@limiter.limit(RATE_LIMIT)
 async def revoke_token(
     request: Request,
     token_id: UUID,
@@ -106,7 +102,6 @@ async def revoke_token(
 
 
 @router.get("/tokens/{token_id}/logs", response_model=dict)
-@limiter.limit(RATE_LIMIT)
 async def get_token_logs(
     request: Request,
     token_id: UUID,

@@ -8,10 +8,11 @@ from .config import settings
 # Rate limit string based on settings
 RATE_LIMIT = f"{settings.rate_limit_per_minute}/minute"
 
-# Create limiter instance
+# Create limiter instance with application-wide shared limit
+# All endpoints share the same rate limit counter per IP
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[RATE_LIMIT]
+    application_limits=[RATE_LIMIT]
 )
 
 

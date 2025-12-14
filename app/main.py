@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.common.config import settings
 from app.common.database import init_db, close_db, async_session_maker
@@ -95,6 +96,9 @@ def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
+
+# Add SlowAPI middleware to enable rate limiting
+app.add_middleware(SlowAPIMiddleware)
 
 # Add audit logging middleware (must be before other middlewares)
 app.add_middleware(AuditLogMiddleware)

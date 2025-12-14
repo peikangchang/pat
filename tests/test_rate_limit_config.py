@@ -48,6 +48,87 @@ class TestRateLimitConfiguration:
 class TestRateLimitEnforcement:
     """Test that rate limiting actually enforces the configured limits."""
 
+    async def test_rate_limit_shared_across_endpoints(self, client: AsyncClient):
+        """Test that rate limit is shared across all endpoints.
+
+        This test verifies that application_limits creates a shared counter,
+        meaning requests to different endpoints count towards the same limit.
+
+        For example, with a 60/minute limit:
+        - 30 requests to /login + 31 requests to /register should trigger rate limit
+        - Not 60 requests to each endpoint independently
+        """
+        import asyncio
+        from app.common.rate_limit import limiter
+        from app.common.config import settings
+
+        # Enable rate limiting for this test
+        original_enabled = limiter.enabled
+        limiter.enabled = True
+
+        # Reset rate limiter storage to ensure clean slate
+        # This clears any rate limit state from previous tests
+        # Access the underlying limits library storage
+        if hasattr(limiter, '_limiter') and hasattr(limiter._limiter, 'storage'):
+            # Clear the storage backend
+            storage = limiter._limiter.storage
+            if hasattr(storage, 'reset'):
+                storage.reset()
+            elif hasattr(storage, 'storage'):
+                # For MemoryStorage, clear the internal dict
+                storage.storage.clear()
+
+        try:
+            limit = settings.rate_limit_per_minute
+
+            # Make requests to different endpoints
+            # Split the limit across two different endpoints
+            requests_per_endpoint = limit // 2
+
+            # First half: requests to /login
+            for i in range(requests_per_endpoint):
+                response = await client.post(
+                    "/api/v1/auth/login",
+                    json={"username": "testuser", "password": "testpass"}
+                )
+                # These should not trigger rate limit yet
+                assert response.status_code != 429, f"Rate limit triggered too early at request {i+1}/{requests_per_endpoint}"
+
+            # Second half: requests to /register
+            # The last few of these should trigger rate limit
+            rate_limited = False
+            for i in range(requests_per_endpoint + 10):  # Try more to ensure we hit the limit
+                response = await client.post(
+                    "/api/v1/auth/register",
+                    json={
+                        "username": f"newuser{i}",
+                        "email": f"user{i}@example.com",
+                        "password": "password123"
+                    }
+                )
+
+                if response.status_code == 429:
+                    # Rate limit triggered - verify response format
+                    data = response.json()
+                    assert data["success"] is False
+                    assert data["error"] == "Too Many Requests"
+                    assert "retry_after" in data["data"]
+                    assert data["data"]["retry_after"] > 0
+                    rate_limited = True
+                    break
+
+            # Verify that rate limit was triggered
+            # This proves that both endpoints share the same counter
+            assert rate_limited, (
+                f"Rate limit should have been triggered by requests to different endpoints. "
+                f"Made {requests_per_endpoint} requests to /login and {requests_per_endpoint + 10} to /register "
+                f"with a total limit of {limit}. This indicates endpoints may have separate counters."
+            )
+
+        finally:
+            # Restore original state
+            limiter.enabled = original_enabled
+
     async def test_rate_limit_enforces_configured_value(self, client: AsyncClient):
         """Test that rate limiter actually enforces the configured limit.
 
