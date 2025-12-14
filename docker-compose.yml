@@ -54,6 +54,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-this-in-production}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
       DEBUG: ${DEBUG:-true}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
