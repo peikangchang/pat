@@ -328,3 +328,139 @@ pytest -m permissions  # 只運行權限測試
 - ⏳ Phase 10: 文檔與部署
 
 **完成度：約 95%**
+
+
+## 2025-12-14 (續) - 範例 FCS 檔案自動初始化
+
+### 完成項目
+
+1. **自動初始化系統**
+   - 創建 `app/common/startup.py` 模組處理啟動初始化
+   - 實作 `initialize_sample_fcs_file()` 函數：
+     - 檢查資料庫中是否已有 FCS 檔案
+     - 從 `sample_data/sample.fcs` 載入範例檔案
+     - 使用 `FCSUsecase.upload_file()` 重用現有驗證邏輯
+     - 使用系統層級權限 (`fcs:write`) 進行初始化
+     - 錯誤處理：失敗不影響應用程式啟動
+
+2. **FastAPI 啟動事件整合**
+   - 修改 `app/main.py` 的 lifespan 事件
+   - 在資料庫初始化後呼叫範例檔案初始化
+   - 確保首次部署時即有示範資料
+
+3. **Docker 配置更新**
+   - 更新 `docker-compose.yml` 添加 `sample_data` 目錄掛載
+   - 確保容器內可存取範例檔案
+
+4. **範例檔案準備**
+   - 添加 `sample_data/sample.fcs` (34,297 events, 26 parameters)
+   - 使用真實的 FCS 檔案作為示範資料
+   - 強制添加到 Git（覆蓋 .gitignore 中的 `*.fcs` 規則）
+
+### 技術實作
+
+**startup.py 設計：**
+```python
+async def initialize_sample_fcs_file(session: AsyncSession) -> None:
+    """Initialize sample FCS file if no files exist.
+
+    Uses the existing FCSUsecase.upload_file() to reuse all validation
+    and processing logic.
+    """
+    try:
+        # Check if any FCS files exist
+        fcs_repo = FCSRepository(session)
+        async with session.begin():
+            existing_file = await fcs_repo.get_latest_file()
+
+        if existing_file:
+            logger.info(f"FCS file already exists: {existing_file.filename}")
+            return
+
+        # Load sample FCS file
+        sample_file_path = Path(__file__).parent.parent.parent / "sample_data" / "sample.fcs"
+
+        with open(sample_file_path, 'rb') as f:
+            file_content = f.read()
+
+        # Use existing usecase with system-level scopes
+        usecase = FCSUsecase(session)
+        system_scopes = ["fcs:write"]
+
+        result = await usecase.upload_file(
+            filename="sample.fcs",
+            file_content=file_content,
+            scopes=system_scopes,
+        )
+
+        logger.info(f"Sample FCS file initialized: {result['total_events']} events, {result['total_parameters']} parameters")
+    except Exception as e:
+        logger.error(f"Error initializing sample FCS file: {e}")
+        # Don't raise - startup should continue even if sample file fails
+```
+
+**main.py 整合：**
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    # Startup
+    await init_db()
+
+    # Initialize sample FCS file if needed
+    async with async_session_maker() as session:
+        await initialize_sample_fcs_file(session)
+
+    yield
+
+    # Shutdown
+    await close_db()
+```
+
+### 設計決策
+
+**方案選擇歷程：**
+1. 初始建議：使用 REST API 呼叫方式初始化
+2. 問題：需要太多前置作業（建立 user、JWT token、PAT token）
+3. 最終方案：直接在啟動事件中呼叫 usecase
+   - 優點：重用現有驗證邏輯
+   - 優點：避免重複程式碼
+   - 優點：系統層級權限，不需要用戶認證
+
+### 測試驗證
+
+```bash
+# 重啟服務應用新配置
+docker compose down && docker compose up -d
+
+# 檢查初始化日誌
+docker compose logs app | grep "Sample FCS"
+# 輸出: Sample FCS file initialized: 34297 events, 26 parameters
+
+# 運行完整測試套件
+pytest tests/ -v
+# 結果: 68 passed
+```
+
+### Commits
+
+1. `1947499` - Add automatic sample FCS file initialization on startup
+
+### 優勢
+
+1. **零配置部署** - 首次啟動即有示範資料
+2. **程式碼重用** - 使用現有 usecase，避免邏輯重複
+3. **優雅失敗** - 初始化失敗不影響應用程式啟動
+4. **幂等性** - 多次啟動不會重複載入
+5. **真實資料** - 使用真實 FCS 檔案提供完整功能展示
+
+### 目前進度
+
+根據原始 10 階段計畫：
+- ✅ Phase 1-7: 基礎架構、Models、Domain、Repository、Usecase、API、Migration、Docker
+- ✅ Phase 8: Rate Limiting 實作與測試
+- ✅ Phase 9: 測試（功能測試 + 完整單元測試套件）
+- ✅ Phase 9.5: 範例資料自動初始化
+- ⏳ Phase 10: 文檔與部署
+
+**完成度：約 98%**
