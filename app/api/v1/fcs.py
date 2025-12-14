@@ -38,7 +38,6 @@ async def upload_fcs_file(
     content = await file.read()
 
     result = await usecase.upload_file(
-        user_id=user.id,
         filename=file.filename or "unknown.fcs",
         file_content=content,
         scopes=token.scopes,
@@ -67,7 +66,7 @@ async def get_fcs_parameters(
     """
     token, user = token_user
     usecase = FCSUsecase(session)
-    result = await usecase.get_parameters(user.id, token.scopes)
+    result = await usecase.get_parameters(token.scopes)
     return success_response(result)
 
 
@@ -95,7 +94,7 @@ async def get_fcs_events(
     """
     token, user = token_user
     usecase = FCSUsecase(session)
-    result = await usecase.get_events(user.id, token.scopes, limit=limit, offset=offset)
+    result = await usecase.get_events(token.scopes, limit=limit, offset=offset)
     return success_response(result)
 
 
@@ -119,5 +118,5 @@ async def get_fcs_statistics(
     """
     token, user = token_user
     usecase = FCSUsecase(session)
-    result = await usecase.get_statistics(user.id, token.scopes)
+    result = await usecase.get_statistics(token.scopes)
     return success_response(result)

@@ -1,13 +1,12 @@
 """FCS file usecase for file upload and analysis."""
 import os
-import secrets
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 import fcsparser
 import numpy as np
 
 from app.common.exceptions import NotFoundException, ForbiddenException, ValidationException
+from app.common.id_utils import generate_uuid7
 from app.domain.permissions import parse_scope, get_implied_permissions
 from app.repository.fcs_repository import FCSRepository
 
@@ -45,17 +44,12 @@ class FCSUsecase:
 
         return None
 
-    def _generate_file_id(self) -> str:
-        """Generate a short random file ID."""
-        return secrets.token_urlsafe(8)
-
     async def upload_file(
-        self, user_id: UUID, filename: str, file_content: bytes, scopes: list[str]
+        self, filename: str, file_content: bytes, scopes: list[str]
     ) -> dict:
-        """Upload and parse an FCS file.
+        """Upload and parse an FCS file (globally shared, replaces existing file).
 
         Args:
-            user_id: User UUID
             filename: Original filename
             file_content: File content bytes
             scopes: User's granted scopes
@@ -73,14 +67,11 @@ class FCSUsecase:
         if not filename.lower().endswith('.fcs'):
             raise ValidationException("File must be an FCS file (.fcs extension)")
 
-        # Generate unique file ID (check in transaction to avoid autobegin)
-        file_id = self._generate_file_id()
-        async with self.session.begin():
-            while await self.fcs_repo.exists_file_id(file_id):
-                file_id = self._generate_file_id()
+        # Generate UUID for file path
+        file_uuid = str(generate_uuid7())
+        file_path = os.path.join(self.upload_dir, f"{file_uuid}.fcs")
 
         # Save file to disk
-        file_path = os.path.join(self.upload_dir, f"{file_id}.fcs")
         with open(file_path, 'wb') as f:
             f.write(file_content)
 
@@ -95,8 +86,6 @@ class FCSUsecase:
             # Create FCS file record and parameters in one transaction
             async with self.session.begin():
                 fcs_file = await self.fcs_repo.create_file(
-                    user_id=user_id,
-                    file_id=file_id,
                     filename=filename,
                     file_path=file_path,
                     total_events=total_events,
@@ -124,7 +113,7 @@ class FCSUsecase:
                 "method": "POST",
                 "required_scope": required_scope,
                 "granted_by": granted_by,
-                "file_id": file_id,
+                "file_id": str(fcs_file.id),
                 "filename": filename,
                 "total_events": total_events,
                 "total_parameters": total_parameters,
@@ -136,11 +125,10 @@ class FCSUsecase:
                 os.remove(file_path)
             raise ValidationException(f"Failed to parse FCS file: {str(e)}")
 
-    async def get_parameters(self, user_id: UUID, scopes: list[str]) -> dict:
-        """Get FCS file parameters from latest file.
+    async def get_parameters(self, scopes: list[str]) -> dict:
+        """Get FCS file parameters from latest file (globally shared).
 
         Args:
-            user_id: User UUID
             scopes: User's granted scopes
 
         Returns:
@@ -152,9 +140,9 @@ class FCSUsecase:
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        # Get FCS file from database
+        # Get latest FCS file from database
         async with self.session.begin():
-            fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+            fcs_file = await self.fcs_repo.get_latest_file_with_parameters()
 
         if not fcs_file:
             raise NotFoundException("No FCS file found")
@@ -182,12 +170,11 @@ class FCSUsecase:
         }
 
     async def get_events(
-        self, user_id: UUID, scopes: list[str], limit: int = 100, offset: int = 0
+        self, scopes: list[str], limit: int = 100, offset: int = 0
     ) -> dict:
-        """Get FCS file events (data) from latest file.
+        """Get FCS file events (data) from latest file (globally shared).
 
         Args:
-            user_id: User UUID
             scopes: User's granted scopes
             limit: Max number of events to return
             offset: Number of events to skip
@@ -201,9 +188,9 @@ class FCSUsecase:
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        # Get FCS file from database
+        # Get latest FCS file from database
         async with self.session.begin():
-            fcs_file = await self.fcs_repo.get_latest_file(user_id)
+            fcs_file = await self.fcs_repo.get_latest_file()
 
         if not fcs_file:
             raise NotFoundException("No FCS file found")
@@ -228,11 +215,10 @@ class FCSUsecase:
             "events": events,
         }
 
-    async def get_statistics(self, user_id: UUID, scopes: list[str]) -> dict:
-        """Get FCS file statistics from latest file.
+    async def get_statistics(self, scopes: list[str]) -> dict:
+        """Get FCS file statistics from latest file (globally shared).
 
         Args:
-            user_id: User UUID
             scopes: User's granted scopes
 
         Returns:
@@ -244,9 +230,9 @@ class FCSUsecase:
         required_scope = "fcs:analyze"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        # Get FCS file from database
+        # Get latest FCS file from database
         async with self.session.begin():
-            fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+            fcs_file = await self.fcs_repo.get_latest_file_with_parameters()
 
         if not fcs_file:
             raise NotFoundException("No FCS file found")

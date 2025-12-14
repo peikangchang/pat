@@ -16,18 +16,14 @@ class FCSRepository:
 
     async def create_file(
         self,
-        user_id: UUID,
-        file_id: str,
         filename: str,
         file_path: str,
         total_events: int,
         total_parameters: int,
     ) -> FCSFile:
-        """Create a new FCS file record.
+        """Create a new FCS file record (globally shared).
 
         Args:
-            user_id: User UUID
-            file_id: Short file ID for API
             filename: Original filename
             file_path: Path to stored file
             total_events: Number of events in file
@@ -37,8 +33,6 @@ class FCSRepository:
             Created FCSFile object
         """
         fcs_file = FCSFile(
-            user_id=user_id,
-            file_id=file_id,
             filename=filename,
             file_path=file_path,
             total_events=total_events,
@@ -98,74 +92,21 @@ class FCSRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_file_by_file_id(self, file_id: str) -> FCSFile | None:
-        """Get FCS file by file_id (short ID).
-
-        Args:
-            file_id: Short file ID
-
-        Returns:
-            FCSFile object if found, None otherwise
-        """
-        result = await self.session.execute(
-            select(FCSFile).where(FCSFile.file_id == file_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_file_with_parameters(self, file_id: str) -> FCSFile | None:
-        """Get FCS file with its parameters.
-
-        Args:
-            file_id: Short file ID
-
-        Returns:
-            FCSFile object with parameters loaded, None if not found
-        """
-        result = await self.session.execute(
-            select(FCSFile)
-            .options(selectinload(FCSFile.parameters))
-            .where(FCSFile.file_id == file_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def list_files_by_user(self, user_id: UUID) -> list[FCSFile]:
-        """List all FCS files for a user.
-
-        Args:
-            user_id: User UUID
-
-        Returns:
-            List of FCSFile objects
-        """
-        result = await self.session.execute(
-            select(FCSFile)
-            .where(FCSFile.user_id == user_id)
-            .order_by(FCSFile.uploaded_at.desc())
-        )
-        return list(result.scalars().all())
-
-    async def get_latest_file(self, user_id: UUID) -> FCSFile | None:
-        """Get the latest FCS file for a user.
-
-        Args:
-            user_id: User UUID
+    async def get_latest_file(self) -> FCSFile | None:
+        """Get the latest (and only) FCS file in the system.
 
         Returns:
             Latest FCSFile object if found, None otherwise
         """
         result = await self.session.execute(
             select(FCSFile)
-            .where(FCSFile.user_id == user_id)
             .order_by(FCSFile.uploaded_at.desc())
             .limit(1)
         )
         return result.scalar_one_or_none()
 
-    async def get_latest_file_with_parameters(self, user_id: UUID) -> FCSFile | None:
-        """Get the latest FCS file for a user with parameters.
-
-        Args:
-            user_id: User UUID
+    async def get_latest_file_with_parameters(self) -> FCSFile | None:
+        """Get the latest (and only) FCS file in the system with parameters.
 
         Returns:
             Latest FCSFile object with parameters loaded, None if not found
@@ -173,7 +114,6 @@ class FCSRepository:
         result = await self.session.execute(
             select(FCSFile)
             .options(selectinload(FCSFile.parameters))
-            .where(FCSFile.user_id == user_id)
             .order_by(FCSFile.uploaded_at.desc())
             .limit(1)
         )
@@ -211,14 +151,3 @@ class FCSRepository:
             return True
         return False
 
-    async def exists_file_id(self, file_id: str) -> bool:
-        """Check if file_id already exists.
-
-        Args:
-            file_id: Short file ID to check
-
-        Returns:
-            True if exists, False otherwise
-        """
-        file = await self.get_file_by_file_id(file_id)
-        return file is not None

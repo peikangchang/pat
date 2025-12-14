@@ -7,12 +7,10 @@ from app.common.id_utils import generate_uuid7
 
 
 class FCSFile(Base):
-    """FCS file metadata."""
+    """FCS file metadata (globally shared, single file in system)."""
     __tablename__ = "fcs_files"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid7)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    file_id = Column(String(50), unique=True, nullable=False, index=True)  # Short ID for API
     filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)  # Path to stored file
     total_events = Column(Integer, nullable=False)
@@ -20,11 +18,10 @@ class FCSFile(Base):
     uploaded_at = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
 
     # Relationships
-    user = relationship("User", back_populates="fcs_files")
     parameters = relationship("FCSParameter", back_populates="file", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<FCSFile(id={self.id}, file_id={self.file_id}, filename={self.filename})>"
+        return f"<FCSFile(id={self.id}, filename={self.filename})>"
 
 
 class FCSParameter(Base):
