@@ -60,14 +60,20 @@ class AuthUsecase:
                 password_hash=password_hash,
             )
 
+            # Commit transaction
+            await self.session.commit()
+
             return UserResponse.model_validate(user)
 
         except DuplicateRecordException as e:
+            await self.session.rollback()
             # Translate repository exception to business exception
             raise ValidationException(e.message)
         except DatabaseConnectionException:
+            await self.session.rollback()
             raise ServiceUnavailableException()
         except DatabaseOperationException:
+            await self.session.rollback()
             raise InternalServerException("Failed to create user")
 
     async def login(self, request: UserLoginRequest) -> TokenResponse:
@@ -171,8 +177,8 @@ class AuthUsecase:
         # Update last used timestamp
         await self.token_repo.update_last_used(token.id)
 
-        # Note: Audit logging is handled by middleware after response is generated
-        # to ensure accurate status code and authorization result
+        # Commit the update (audit logging is handled separately by middleware)
+        await self.session.commit()
 
         return token, user
 

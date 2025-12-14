@@ -89,12 +89,13 @@ async def get_current_token_from_pat(
         endpoint=endpoint,
     )
 
-    # Store token info in request state for audit logging middleware
+    # Store token info and session in request state for audit logging middleware
     request.state.pat_audit_info = {
         "token_id": token.id,
         "ip_address": client_ip,
         "method": method,
         "endpoint": endpoint,
+        "session": session,  # Store session for audit logging in same session
     }
 
     return token, user

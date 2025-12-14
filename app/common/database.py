@@ -21,15 +21,22 @@ Base = declarative_base()
 
 
 async def get_db() -> AsyncSession:
-    """Dependency for getting async database sessions."""
+    """Dependency for getting async database sessions.
+
+    Note: Each usecase is responsible for committing its transactions.
+    This only handles rollback for uncaught exceptions.
+    """
     async with async_session_maker() as session:
         try:
             yield session
-            await session.commit()
+            # Usecase is responsible for commit
+            # Don't auto-commit here
         except Exception:
+            # Rollback on uncaught exceptions
             await session.rollback()
             raise
         finally:
+            # Close session (also done by context manager, but explicit is better)
             await session.close()
 
 

@@ -80,6 +80,8 @@ class TokenUsecase:
                     scopes=request.scopes,
                     expires_at=expires_at,
                 )
+                # Commit transaction
+                await self.session.commit()
                 break  # Success, exit retry loop
             except DuplicateRecordException:
                 # Hash collision detected (extremely rare)
@@ -91,8 +93,10 @@ class TokenUsecase:
                 # Retry with new token
                 continue
             except DatabaseConnectionException:
+                await self.session.rollback()
                 raise ServiceUnavailableException()
             except DatabaseOperationException:
+                await self.session.rollback()
                 raise InternalServerException("Failed to create token")
 
         if not token or not token_info:
@@ -173,6 +177,9 @@ class TokenUsecase:
         # Revoke token
         revoked_token = await self.token_repo.revoke(token_id)
 
+        # Commit transaction
+        await self.session.commit()
+
         return TokenDetailResponse.model_validate(revoked_token)
 
     async def get_token_logs(
@@ -232,8 +239,8 @@ class TokenUsecase:
     ):
         """Log token usage to audit log.
 
-        This method uses a separate session to ensure the audit log is persisted
-        even if the main request transaction fails.
+        Uses the same session but in an independent transaction block.
+        This ensures audit log is persisted regardless of the main transaction outcome.
 
         Args:
             token_id: Token UUID
@@ -244,14 +251,11 @@ class TokenUsecase:
             authorized: Whether the request was authorized (2xx status)
             reason: Optional reason for failure
         """
-        from app.common.database import async_session_maker
-
-        # Use a separate session for audit logging to ensure it persists
-        # regardless of the main request transaction outcome
-        async with async_session_maker() as audit_session:
-            try:
-                audit_repo = AuditLogRepository(audit_session)
-                await audit_repo.create(
+        try:
+            # Use session.begin() to start a new, independent transaction
+            # This won't commit any pending operations from previous transactions
+            async with self.session.begin():
+                await self.audit_repo.create(
                     token_id=token_id,
                     ip_address=ip_address,
                     method=method,
@@ -260,9 +264,9 @@ class TokenUsecase:
                     authorized=authorized,
                     reason=reason,
                 )
-                await audit_session.commit()
-            except Exception:
-                await audit_session.rollback()
-                # Don't let audit logging errors affect the response
-                # Just silently fail (could log to application logs in production)
-                pass
+                # Automatically commits on successful exit from context
+        except Exception:
+            # Automatically rolls back on exception
+            # Don't let audit logging errors affect the response
+            # Just silently fail (could log to application logs in production)
+            pass

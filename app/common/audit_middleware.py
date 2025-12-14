@@ -43,6 +43,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             # Use asyncio.create_task to run in background
             asyncio.create_task(
                 self._log_audit(
+                    session=pat_audit_info["session"],
                     token_id=pat_audit_info["token_id"],
                     ip_address=pat_audit_info["ip_address"],
                     method=pat_audit_info["method"],
@@ -57,6 +58,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
     async def _log_audit(
         self,
+        session,
         token_id,
         ip_address: str,
         method: str,
@@ -68,13 +70,21 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         """Log audit entry using token usecase.
 
         This method is called asynchronously after the response is sent.
-        It uses token_usecase.log_token_usage which handles its own
-        database session to ensure the audit log persists regardless
-        of the main request transaction outcome.
+        It uses the same session from the request but in a new transaction.
+
+        Args:
+            session: Database session from request
+            token_id: Token UUID
+            ip_address: Client IP
+            method: HTTP method
+            endpoint: API endpoint
+            status_code: HTTP status code
+            authorized: Whether request was authorized
+            reason: Optional failure reason
         """
         try:
-            # Create a dummy session (TokenUsecase.log_token_usage creates its own)
-            token_usecase = TokenUsecase(session=None)  # type: ignore
+            # Use the same session from the request
+            token_usecase = TokenUsecase(session=session)
             await token_usecase.log_token_usage(
                 token_id=token_id,
                 ip_address=ip_address,
