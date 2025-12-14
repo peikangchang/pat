@@ -888,7 +888,7 @@ pytest -m permissions                    # 只執行權限測試
 
 ### 開發歷史
 
-完整開發記錄請參考 **[CLAUDE.md](docs/CLAUDE.md)**，包含：
+完整開發記錄請參考 **[CLAUDE.md](.claude/CLAUDE.md)**，包含：
 - Docker 環境設置
 - Transaction 管理重構
 - Rate Limiting 實作
