@@ -866,7 +866,7 @@ pytest -m permissions                    # 只執行權限測試
 
 ### 部署
 
-完整生產環境部署指南請參考 **[DEPLOYMENT.md](DEPLOYMENT.md)**，包含：
+完整生產環境部署指南請參考 **[DEPLOYMENT.md](docs/DEPLOYMENT.md)**，包含：
 - 環境配置與安全設定
 - Nginx 反向代理與 SSL 設定
 - 監控、備份與還原
@@ -888,7 +888,7 @@ pytest -m permissions                    # 只執行權限測試
 
 ### 開發歷史
 
-完整開發記錄請參考 **[CLAUDE.md](CLAUDE.md)**，包含：
+完整開發記錄請參考 **[CLAUDE.md](docs/CLAUDE.md)**，包含：
 - Docker 環境設置
 - Transaction 管理重構
 - Rate Limiting 實作
