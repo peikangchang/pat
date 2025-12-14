@@ -632,3 +632,191 @@ PAT (Personal Access Token) API 系統現已完全就緒，包含：
 - ✅ 健康檢查端點
 - ✅ 速率限制
 - ✅ 安全最佳實務
+
+
+## 2025-12-14 (續) - Audit Log 與 Rate Limiting 優化
+
+### 完成項目
+
+1. **Audit Log Reason 優化**
+   - 修改 403 狀態碼的 reason 從 `"Permission denied"` 改為 `"Insufficient permissions"`
+   - 優化 API 回傳格式：當 `authorized=true` 時不回傳 `reason` 欄位
+   - 只有失敗的請求才包含失敗原因
+
+2. **Rate Limiting Retry-After 動態計算**
+   - 修正 `retry_after` 從固定 60 秒改為實際倒數計時
+   - 直接從 slowapi 的 window statistics 計算實際重置時間
+   - 確保客戶端獲得準確的等待時間資訊
+
+3. **測試腳本檔案提交**
+   - 提交獨立的 rate limiting 測試腳本
+   - 包含完整的使用文件
+
+### 技術實作
+
+**1. Audit Middleware 修改 (app/common/audit_middleware.py:34)**
+
+```python
+# Determine reason for failure
+reason = None
+if not authorized:
+    if response.status_code == 403:
+        reason = "Insufficient permissions"  # 更明確的錯誤訊息
+    elif response.status_code == 401:
+        reason = "Unauthorized"
+    elif response.status_code >= 500:
+        reason = "Internal server error"
+    else:
+        reason = f"HTTP {response.status_code}"
+```
+
+**2. Token Usecase 回傳格式優化 (app/usecase/token_usecase.py:234)**
+
+```python
+"logs": [
+    {
+        "timestamp": log.timestamp,
+        "ip": log.ip_address,
+        "method": log.method,
+        "endpoint": log.endpoint,
+        "status_code": log.status_code,
+        "authorized": log.authorized,
+        # 只在 authorized=false 時才包含 reason
+        **({} if log.authorized else {"reason": log.reason}),
+    }
+    for log in logs
+],
+```
+
+**3. Rate Limiting Retry-After 計算 (app/main.py:52-94)**
+
+原本問題：
+- 嘗試從 slowapi 的 `_rate_limit_exceeded_handler` 回應讀取 Retry-After header
+- 但該 handler 需要 `request.state.view_rate_limit` 才能正確計算
+- 導致總是回傳預設值 60
+
+解決方案：
+```python
+def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Custom handler for rate limit exceeded errors.
+
+    Calculates actual retry-after time from rate limit window statistics
+    and formats response according to design document.
+    """
+    import time
+
+    # Get limiter from app state
+    limiter_instance = request.app.state.limiter
+
+    # Get the rate limit that was exceeded from request state
+    # This is set by the @limiter.limit() decorator
+    view_rate_limit = getattr(request.state, "view_rate_limit", None)
+
+    # Calculate actual retry-after time
+    if view_rate_limit:
+        # Get window statistics from limiter
+        window_stats = limiter_instance.limiter.get_window_stats(
+            view_rate_limit[0], *view_rate_limit[1]
+        )
+        # Calculate reset time: reset_in is the absolute timestamp
+        reset_in = 1 + window_stats[0]
+        # Calculate seconds until reset
+        retry_after = int(reset_in - time.time())
+        # Ensure non-negative value
+        retry_after = max(1, retry_after)
+    else:
+        # Fallback to default if view_rate_limit not available
+        retry_after = 60
+
+    # Return response in design document format
+    return JSONResponse(...)
+```
+
+### Slowapi 機制分析
+
+根據 [slowapi 原始碼](https://github.com/laurentS/slowapi/blob/master/slowapi/extension.py)分析：
+
+1. **Window Statistics**
+   - `get_window_stats()` 方法回傳當前時間窗口的統計資料
+   - `window_stats[0]` 是重置時間的 Unix timestamp
+
+2. **Retry-After 計算公式**
+   ```python
+   reset_in = 1 + window_stats[0]
+   retry_after = int(reset_in - time.time())
+   ```
+
+3. **Header Mapping**
+   - slowapi 使用標準的 `"Retry-After"` header 名稱
+   - 可透過 `_header_mapping` 自訂
+
+### 測試驗證
+
+**測試 1 - 動態倒數計時：**
+```bash
+$ python3 -c "測試腳本"
+
+Testing retry_after dynamic countdown...
+[1] retry_after = 36s
+[2] retry_after = 34s  (2 秒後)
+[3] retry_after = 32s  (4 秒後)
+...
+[10] retry_after = 18s (18 秒後)
+
+✓ Retry values collected: [36, 34, 32, 30, 28, 26, 24, 22, 20, 18]
+✓ Values are decreasing: True
+✓ Countdown is working correctly!
+```
+
+**測試 2 - 完整測試套件：**
+```bash
+$ pytest tests/ -v
+======================= 73 passed, 8 warnings in 35.10s ========================
+```
+
+所有測試通過，包括：
+- Rate limiting 配置測試
+- API 狀態碼測試
+- Token 生命週期測試
+- 權限測試
+
+### Commits
+
+1. `ce8cd94` - Update audit log reason handling and response format
+2. `ce520e6` - Calculate actual retry_after time from rate limit window statistics
+3. `3ba177b` - Add standalone rate limiting test script and documentation
+
+### 技術亮點
+
+**1. Audit Log 格式優化**
+- 成功請求不包含多餘的 `reason: null` 欄位
+- 回傳資料更簡潔，符合 REST API 最佳實務
+
+**2. Rate Limiting 精確計時**
+- 客戶端獲得準確的等待時間
+- 避免不必要的重試（如果顯示固定 60 秒，客戶端可能在 5 秒後就重試）
+- 改善 API 使用體驗
+
+**3. 測試工具完善**
+- 提供獨立測試腳本 `tests/test_rate_limit.py`
+- 可配置參數、詳細輸出、彩色終端顯示
+- 完整的使用文件 `tests/TEST_RATE_LIMIT.md`
+
+### 參考資源
+
+- [slowapi Documentation](https://slowapi.readthedocs.io/)
+- [slowapi GitHub](https://github.com/laurentS/slowapi)
+- [slowapi extension.py](https://github.com/laurentS/slowapi/blob/master/slowapi/extension.py)
+- [RFC 2616 - Retry-After Header](https://tools.ietf.org/html/rfc2616#section-14.37)
+
+### 測試統計更新
+
+- **總測試用例**: 73
+- **通過率**: 100%
+- **新增測試工具**: 獨立 rate limiting 測試腳本
+
+### 品質提升
+
+1. **API 回應一致性** - Audit log 格式更符合標準
+2. **使用者體驗** - Rate limiting 提供準確的等待時間
+3. **可測試性** - 獨立測試腳本方便手動驗證和 CI/CD 整合
