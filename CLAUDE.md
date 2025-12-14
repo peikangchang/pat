@@ -236,3 +236,95 @@ async def register(request_obj: Request, ...):
 - ⏳ Phase 10: 文檔與部署
 
 **完成度：約 85%**
+
+## 2025-12-14 (續) - 完整測試套件實作
+
+### 完成項目
+
+1. **測試基礎設施**
+   - 配置 pytest 與 pytest-asyncio
+   - 創建測試數據庫隔離環境
+   - 實作 comprehensive fixtures（users, tokens, sessions）
+   - 設置覆蓋率報告（pytest-cov）
+
+2. **權限階層繼承測試** (`test_permissions.py`)
+   - ✅ `workspaces:delete` 包含 `delete`/`write`/`read` 權限
+   - ✅ `workspaces:delete` 不包含 `workspaces:admin` 權限
+   - ✅ `workspaces:write` 包含 `read`，不包含 `delete`
+   - ✅ `workspaces:admin` 包含所有 workspace 權限
+   - ✅ 跨資源權限隔離（`workspaces:write` 不包含 `fcs:read`）
+
+3. **使用者隔離測試** (`test_user_isolation.py`)
+   - ✅ User A 無法列出/查看/撤銷 User B 的 tokens
+   - ✅ User A 無法查看 User B 的 audit logs
+   - ✅ 用戶只能訪問自己的資源
+
+4. **Token 生命周期測試** (`test_token_lifecycle.py`)
+   - ✅ 已過期 token → 401 TokenExpired
+   - ✅ 已撤銷 token → 401 TokenRevoked
+   - ✅ 即將過期 token 仍有效
+   - ✅ 撤銷操作幂等性
+   - ✅ 已撤銷 token 仍出現在列表中
+   - ✅ 有效且有權限 token → 200
+   - ✅ 有效但無權限 token → 403
+
+5. **Token 安全存儲測試** (`test_token_security.py`)
+   - ✅ DB 中不存明文 token（只有 hash + prefix）
+   - ✅ Token hash 一致性驗證
+   - ✅ 無效 token → 401 InvalidToken
+   - ✅ Prefix token 無法認證 → 401 InvalidToken
+   - ✅ 缺少/無效 Authorization header → 401
+   - ✅ 空 token → 401
+
+6. **API Status Codes 完整測試** (`test_api_status_codes.py`)
+
+   覆蓋所有 API 端點的各種狀態碼：
+   - ✅ 200 OK - 成功響應
+   - ✅ 400 Bad Request - 驗證錯誤
+   - ✅ 401 Unauthorized - 未認證
+   - ✅ 403 Forbidden - 權限不足
+   - ✅ 404 Not Found - 資源不存在
+   - ✅ 422 Unprocessable Entity - 請求格式錯誤
+   - ✅ 429 Too Many Requests - 超過速率限制
+
+   **測試的 API：**
+   - Auth API: register, login
+   - Tokens API: create, list, get, revoke, logs
+   - Workspaces API: list, create, delete, update settings
+   - Users API: get me, update me
+   - FCS API: parameters, events, statistics, upload
+
+### 測試統計
+
+- **總測試文件**: 5
+- **總測試用例**: 60+
+- **測試覆蓋率目標**: >80%
+- **測試標記**: unit, integration, permissions, security, isolation
+
+### 執行測試
+
+```bash
+# 使用測試腳本
+./run_tests.sh
+
+# 或手動執行
+pytest tests/ -v --cov=app --cov-report=term-missing
+
+# 運行特定測試
+pytest tests/test_permissions.py -v
+pytest -m permissions  # 只運行權限測試
+```
+
+### Commits
+
+1. `4550ff6` - Add comprehensive test suite
+
+### 目前進度
+
+根據原始 10 階段計畫：
+- ✅ Phase 1-7: 基礎架構、Models、Domain、Repository、Usecase、API、Migration、Docker
+- ✅ Phase 8: Rate Limiting 實作與測試
+- ✅ Phase 9: 測試（功能測試 + 完整單元測試套件）
+- ⏳ Phase 10: 文檔與部署
+
+**完成度：約 95%**
