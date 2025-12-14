@@ -6,6 +6,8 @@ from typing import AsyncGenerator
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy import text
 
 from app.main import app
 from app.common.database import Base, get_db
@@ -21,12 +23,69 @@ from app.models.token import Token
 TEST_DATABASE_URL = settings.database_url.replace("/pat_db", "/pat_test")
 
 
+async def ensure_test_database_exists():
+    """Ensure test database exists, create if it doesn't."""
+    # Connect to postgres database to create pat_test database
+    postgres_url = settings.database_url.replace("/pat_db", "/postgres")
+    engine = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT", echo=False)
+
+    async with engine.connect() as conn:
+        # Check if database exists
+        result = await conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = 'pat_test'")
+        )
+        exists = result.scalar() is not None
+
+        if not exists:
+            # Create test database
+            await conn.execute(text("CREATE DATABASE pat_test"))
+            print("✓ Created test database: pat_test")
+
+    await engine.dispose()
+
+
+async def cleanup_test_database():
+    """Drop test database after all tests complete."""
+    # Connect to postgres database to drop pat_test database
+    postgres_url = settings.database_url.replace("/pat_db", "/postgres")
+    engine = create_async_engine(postgres_url, isolation_level="AUTOCOMMIT", echo=False)
+
+    async with engine.connect() as conn:
+        # Terminate all connections to pat_test
+        await conn.execute(
+            text("""
+                SELECT pg_terminate_backend(pg_stat_activity.pid)
+                FROM pg_stat_activity
+                WHERE pg_stat_activity.datname = 'pat_test'
+                  AND pid <> pg_backend_pid()
+            """)
+        )
+
+        # Drop test database
+        await conn.execute(text("DROP DATABASE IF EXISTS pat_test"))
+        print("✓ Cleaned up test database: pat_test")
+
+    await engine.dispose()
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for async tests."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def setup_test_database(event_loop):
+    """Setup test database before any tests run, cleanup after all tests complete."""
+    # Setup: Create test database
+    await ensure_test_database_exists()
+
+    yield
+
+    # Teardown: Drop test database
+    await cleanup_test_database()
 
 
 @pytest.fixture(scope="function")

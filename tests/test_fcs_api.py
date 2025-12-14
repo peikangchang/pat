@@ -321,6 +321,392 @@ class TestFCSPermissions:
 
 
 @pytest.mark.fcs
+class TestFCSUpload401:
+    """Test 401 Unauthorized scenarios for FCS upload."""
+
+    async def test_upload_fcs_401_no_authorization_header(self, client: AsyncClient):
+        """Test uploading FCS file without Authorization header returns 401."""
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+        response = await client.post("/api/v1/fcs/upload", files=files)
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_upload_fcs_401_invalid_token(self, client: AsyncClient):
+        """Test uploading FCS file with invalid PAT token returns 401."""
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": "Bearer pat_invalid_token"},
+            files=files
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_upload_fcs_401_expired_token(
+        self, client: AsyncClient, user_a: User
+    ):
+        """Test uploading FCS file with expired PAT token returns 401."""
+        from datetime import datetime, timedelta, timezone
+        from app.domain.token_service import create_token_info
+        from app.models.token import Token
+        from app.common.database import async_session_maker
+
+        token_info = create_token_info()
+        expired_at = datetime.now(timezone.utc) - timedelta(days=1)
+
+        async with async_session_maker() as session:
+            async with session.begin():
+                token = Token(
+                    user_id=user_a.id,
+                    name="Expired Token",
+                    token_hash=token_info.token_hash,
+                    token_prefix=token_info.token_prefix,
+                    scopes=["fcs:write"],
+                    expires_at=expired_at,
+                )
+                session.add(token)
+
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_info.full_token}"},
+            files=files
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["message"].lower()
+
+    async def test_upload_fcs_401_revoked_token(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test uploading FCS file with revoked PAT token returns 401."""
+        full_token, _ = await create_pat_token(
+            user_a.id,
+            scopes=["fcs:write"],
+            is_revoked=True
+        )
+
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {full_token}"},
+            files=files
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["message"].lower()
+
+
+@pytest.mark.fcs
+class TestFCSParameters401:
+    """Test 401 Unauthorized scenarios for FCS parameters endpoint."""
+
+    async def test_get_parameters_401_no_authorization_header(self, client: AsyncClient):
+        """Test getting FCS parameters without Authorization header returns 401."""
+        response = await client.get("/api/v1/fcs/parameters")
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_parameters_401_invalid_token(self, client: AsyncClient):
+        """Test getting FCS parameters with invalid PAT token returns 401."""
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": "Bearer pat_invalid_token"}
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_parameters_401_expired_token(
+        self, client: AsyncClient, user_a: User
+    ):
+        """Test getting FCS parameters with expired PAT token returns 401."""
+        from datetime import datetime, timedelta, timezone
+        from app.domain.token_service import create_token_info
+        from app.models.token import Token
+        from app.common.database import async_session_maker
+
+        token_info = create_token_info()
+        expired_at = datetime.now(timezone.utc) - timedelta(days=1)
+
+        async with async_session_maker() as session:
+            async with session.begin():
+                token = Token(
+                    user_id=user_a.id,
+                    name="Expired Token",
+                    token_hash=token_info.token_hash,
+                    token_prefix=token_info.token_prefix,
+                    scopes=["fcs:read"],
+                    expires_at=expired_at,
+                )
+                session.add(token)
+
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {token_info.full_token}"}
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["message"].lower()
+
+    async def test_get_parameters_401_revoked_token(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test getting FCS parameters with revoked PAT token returns 401."""
+        full_token, _ = await create_pat_token(
+            user_a.id,
+            scopes=["fcs:read"],
+            is_revoked=True
+        )
+
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["message"].lower()
+
+
+@pytest.mark.fcs
+class TestFCSEvents401:
+    """Test 401 Unauthorized scenarios for FCS events endpoint."""
+
+    async def test_get_events_401_no_authorization_header(self, client: AsyncClient):
+        """Test getting FCS events without Authorization header returns 401."""
+        response = await client.get("/api/v1/fcs/events")
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_events_401_invalid_token(self, client: AsyncClient):
+        """Test getting FCS events with invalid PAT token returns 401."""
+        response = await client.get(
+            "/api/v1/fcs/events",
+            headers={"Authorization": "Bearer pat_invalid_token"}
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_events_401_expired_token(
+        self, client: AsyncClient, user_a: User
+    ):
+        """Test getting FCS events with expired PAT token returns 401."""
+        from datetime import datetime, timedelta, timezone
+        from app.domain.token_service import create_token_info
+        from app.models.token import Token
+        from app.common.database import async_session_maker
+
+        token_info = create_token_info()
+        expired_at = datetime.now(timezone.utc) - timedelta(days=1)
+
+        async with async_session_maker() as session:
+            async with session.begin():
+                token = Token(
+                    user_id=user_a.id,
+                    name="Expired Token",
+                    token_hash=token_info.token_hash,
+                    token_prefix=token_info.token_prefix,
+                    scopes=["fcs:read"],
+                    expires_at=expired_at,
+                )
+                session.add(token)
+
+        response = await client.get(
+            "/api/v1/fcs/events",
+            headers={"Authorization": f"Bearer {token_info.full_token}"}
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["message"].lower()
+
+    async def test_get_events_401_revoked_token(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test getting FCS events with revoked PAT token returns 401."""
+        full_token, _ = await create_pat_token(
+            user_a.id,
+            scopes=["fcs:read"],
+            is_revoked=True
+        )
+
+        response = await client.get(
+            "/api/v1/fcs/events",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["message"].lower()
+
+
+@pytest.mark.fcs
+class TestFCSStatistics401:
+    """Test 401 Unauthorized scenarios for FCS statistics endpoint."""
+
+    async def test_get_statistics_401_no_authorization_header(self, client: AsyncClient):
+        """Test getting FCS statistics without Authorization header returns 401."""
+        response = await client.get("/api/v1/fcs/statistics")
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_statistics_401_invalid_token(self, client: AsyncClient):
+        """Test getting FCS statistics with invalid PAT token returns 401."""
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": "Bearer pat_invalid_token"}
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "Unauthorized"
+
+    async def test_get_statistics_401_expired_token(
+        self, client: AsyncClient, user_a: User
+    ):
+        """Test getting FCS statistics with expired PAT token returns 401."""
+        from datetime import datetime, timedelta, timezone
+        from app.domain.token_service import create_token_info
+        from app.models.token import Token
+        from app.common.database import async_session_maker
+
+        token_info = create_token_info()
+        expired_at = datetime.now(timezone.utc) - timedelta(days=1)
+
+        async with async_session_maker() as session:
+            async with session.begin():
+                token = Token(
+                    user_id=user_a.id,
+                    name="Expired Token",
+                    token_hash=token_info.token_hash,
+                    token_prefix=token_info.token_prefix,
+                    scopes=["fcs:analyze"],
+                    expires_at=expired_at,
+                )
+                session.add(token)
+
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {token_info.full_token}"}
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["message"].lower()
+
+    async def test_get_statistics_401_revoked_token(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test getting FCS statistics with revoked PAT token returns 401."""
+        full_token, _ = await create_pat_token(
+            user_a.id,
+            scopes=["fcs:analyze"],
+            is_revoked=True
+        )
+
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["message"].lower()
+
+
+@pytest.mark.fcs
+class TestFCSEventsPagination:
+    """Test pagination parameters for FCS events endpoint."""
+
+    async def test_get_events_with_valid_pagination(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test GET /fcs/events with valid limit and offset."""
+        # Upload a file first
+        token, _ = await create_pat_token(user_a.id, scopes=["fcs:write", "fcs:read"])
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files=files
+        )
+
+        # Test with limit
+        response = await client.get(
+            "/api/v1/fcs/events?limit=5",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["limit"] == 5
+        assert len(data["events"]) <= 5
+
+        # Test with limit and offset
+        response = await client.get(
+            "/api/v1/fcs/events?limit=3&offset=2",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["limit"] == 3
+        assert data["offset"] == 2
+
+    async def test_get_events_422_invalid_limit(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test GET /fcs/events with invalid limit returns 422."""
+        token, _ = await create_pat_token(user_a.id, scopes=["fcs:read"])
+
+        # Upload a file first
+        token_write, _ = await create_pat_token(user_a.id, scopes=["fcs:write"])
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Test negative limit
+        response = await client.get(
+            "/api/v1/fcs/events?limit=-1",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 422
+
+        # Test zero limit
+        response = await client.get(
+            "/api/v1/fcs/events?limit=0",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 422
+
+        # Test limit too large
+        response = await client.get(
+            "/api/v1/fcs/events?limit=10001",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 422
+
+    async def test_get_events_422_invalid_offset(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test GET /fcs/events with invalid offset returns 422."""
+        token, _ = await create_pat_token(user_a.id, scopes=["fcs:read"])
+
+        # Upload a file first
+        token_write, _ = await create_pat_token(user_a.id, scopes=["fcs:write"])
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Test negative offset
+        response = await client.get(
+            "/api/v1/fcs/events?offset=-1",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 422
+
+
+@pytest.mark.fcs
 class TestFCSNoFileScenarios:
     """Test FCS API behavior when no file exists."""
 

@@ -224,3 +224,242 @@ class TestCrossResourcePermissions:
 
         # Should NOT be able to access tokens endpoints (uses JWT, not PAT)
         # Note: tokens endpoints require JWT authentication, not PAT
+
+
+@pytest.mark.permissions
+class TestFCSPermissionHierarchy:
+    """Test FCS permission hierarchy: analyze > write > read."""
+
+    async def test_fcs_analyze_includes_all_fcs_permissions(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test that fcs:analyze includes analyze/write/read permissions.
+
+        FCS permission hierarchy:
+        - fcs:analyze 包含 fcs:analyze, fcs:write, fcs:read
+        - fcs:write 包含 fcs:write, fcs:read
+        - fcs:read 包含 fcs:read
+        """
+        # Upload FCS file first
+        token_write, _ = await create_pat_token(user_a.id, scopes=["fcs:write"])
+        import io
+        from tests.test_fcs_api import create_mock_fcs_file
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Create token with analyze permission
+        full_token, token = await create_pat_token(
+            user_a.id, scopes=["fcs:analyze"]
+        )
+
+        # Should be able to read (lower permission)
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 200, "analyze should include read permission"
+
+        # Should be able to write (lower permission)
+        filename2, content2 = create_mock_fcs_file("another.fcs")
+        files2 = {"file": (filename2, io.BytesIO(content2), "application/octet-stream")}
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {full_token}"},
+            files=files2
+        )
+        assert response.status_code == 200, "analyze should include write permission"
+
+        # Should be able to analyze
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 200, "analyze should include analyze permission"
+
+    async def test_fcs_write_includes_read(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test that fcs:write includes write and read permissions."""
+        # Upload FCS file first
+        full_token, token = await create_pat_token(
+            user_a.id, scopes=["fcs:write"]
+        )
+
+        import io
+        from tests.test_fcs_api import create_mock_fcs_file
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+        # Should be able to write
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {full_token}"},
+            files=files
+        )
+        assert response.status_code == 200, "write should allow upload"
+
+        # Should be able to read
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 200, "write should include read permission"
+
+    async def test_fcs_write_does_not_include_analyze(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test that fcs:write does NOT include analyze permission."""
+        # Upload FCS file first
+        token_write, _ = await create_pat_token(
+            user_a.id, scopes=["fcs:write"]
+        )
+
+        import io
+        from tests.test_fcs_api import create_mock_fcs_file
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Create token with write permission only
+        full_token, token = await create_pat_token(
+            user_a.id, scopes=["fcs:write"]
+        )
+
+        # Should NOT be able to analyze (requires fcs:analyze)
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 403, "write should NOT include analyze permission"
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "fcs:analyze"
+        assert data["data"]["your_scopes"] == ["fcs:write"]
+
+    async def test_fcs_read_only_allows_reading(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test that fcs:read only allows reading, not writing or analyzing."""
+        # Upload FCS file first
+        token_write, _ = await create_pat_token(user_a.id, scopes=["fcs:write"])
+        import io
+        from tests.test_fcs_api import create_mock_fcs_file
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Create token with read permission only
+        full_token, token = await create_pat_token(
+            user_a.id, scopes=["fcs:read"]
+        )
+
+        # Should be able to read
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 200, "read should allow reading"
+
+        response = await client.get(
+            "/api/v1/fcs/events",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 200, "read should allow reading events"
+
+        # Should NOT be able to write
+        filename2, content2 = create_mock_fcs_file("another.fcs")
+        files2 = {"file": (filename2, io.BytesIO(content2), "application/octet-stream")}
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {full_token}"},
+            files=files2
+        )
+        assert response.status_code == 403, "read should NOT include write permission"
+
+        # Should NOT be able to analyze
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {full_token}"}
+        )
+        assert response.status_code == 403, "read should NOT include analyze permission"
+
+    async def test_fcs_permissions_hierarchy_completeness(
+        self, client: AsyncClient, user_a: User, create_pat_token
+    ):
+        """Test complete FCS permission hierarchy with all three levels."""
+        # Upload FCS file
+        token_write, _ = await create_pat_token(user_a.id, scopes=["fcs:write"])
+        import io
+        from tests.test_fcs_api import create_mock_fcs_file
+        filename, content = create_mock_fcs_file()
+        files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+        await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_write}"},
+            files=files
+        )
+
+        # Test fcs:read can only read
+        token_read, _ = await create_pat_token(user_a.id, scopes=["fcs:read"])
+
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {token_read}"}
+        )
+        assert response.status_code == 200
+
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {token_read}"}
+        )
+        assert response.status_code == 403, "read cannot analyze"
+
+        # Test fcs:write can write and read but not analyze
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {token_write}"}
+        )
+        assert response.status_code == 200
+
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {token_write}"}
+        )
+        assert response.status_code == 403, "write cannot analyze"
+
+        # Test fcs:analyze can do everything
+        token_analyze, _ = await create_pat_token(user_a.id, scopes=["fcs:analyze"])
+
+        response = await client.get(
+            "/api/v1/fcs/parameters",
+            headers={"Authorization": f"Bearer {token_analyze}"}
+        )
+        assert response.status_code == 200, "analyze can read"
+
+        response = await client.get(
+            "/api/v1/fcs/statistics",
+            headers={"Authorization": f"Bearer {token_analyze}"}
+        )
+        assert response.status_code == 200, "analyze can analyze"
+
+        filename3, content3 = create_mock_fcs_file("third.fcs")
+        files3 = {"file": (filename3, io.BytesIO(content3), "application/octet-stream")}
+        response = await client.post(
+            "/api/v1/fcs/upload",
+            headers={"Authorization": f"Bearer {token_analyze}"},
+            files=files3
+        )
+        assert response.status_code == 200, "analyze can write"
