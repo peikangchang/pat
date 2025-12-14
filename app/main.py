@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.common.config import settings
@@ -52,14 +51,33 @@ app = FastAPI(
 def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
     """Custom handler for rate limit exceeded errors.
 
-    Uses slowapi's built-in Retry-After calculation and formats response
-    according to design document.
+    Calculates actual retry-after time from rate limit window statistics
+    and formats response according to design document.
     """
-    # Get original response from slowapi (includes Retry-After header)
-    original_response = _rate_limit_exceeded_handler(request, exc)
+    import time
 
-    # Extract Retry-After from headers
-    retry_after = int(original_response.headers.get("Retry-After", 60))
+    # Get limiter from app state
+    limiter_instance = request.app.state.limiter
+
+    # Get the rate limit that was exceeded from request state
+    # This is set by the @limiter.limit() decorator
+    view_rate_limit = getattr(request.state, "view_rate_limit", None)
+
+    # Calculate actual retry-after time
+    if view_rate_limit:
+        # Get window statistics from limiter
+        window_stats = limiter_instance.limiter.get_window_stats(
+            view_rate_limit[0], *view_rate_limit[1]
+        )
+        # Calculate reset time: reset_in is the absolute timestamp
+        reset_in = 1 + window_stats[0]
+        # Calculate seconds until reset
+        retry_after = int(reset_in - time.time())
+        # Ensure non-negative value
+        retry_after = max(1, retry_after)
+    else:
+        # Fallback to default if view_rate_limit not available
+        retry_after = 60
 
     # Return response in design document format
     return JSONResponse(
