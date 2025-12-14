@@ -107,6 +107,10 @@ def decode_access_token(token: str) -> JWTPayload | None:
 
     Returns:
         JWTPayload if valid, None if invalid or expired
+
+    Raises:
+        jwt.ExpiredSignatureError: If token is expired
+        jwt.InvalidTokenError: If token is invalid
     """
     try:
         payload_dict = jwt.decode(
@@ -115,8 +119,12 @@ def decode_access_token(token: str) -> JWTPayload | None:
             algorithms=[settings.jwt_algorithm],
         )
         return JWTPayload(**payload_dict)
-    except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
-        return None
+    except jwt.ExpiredSignatureError:
+        # Re-raise to let caller handle expired tokens specifically
+        raise
+    except jwt.InvalidTokenError:
+        # Re-raise to let caller handle invalid tokens specifically
+        raise
 
 
 def extract_user_id_from_token(token: str) -> UUID | None:
@@ -127,12 +135,15 @@ def extract_user_id_from_token(token: str) -> UUID | None:
 
     Returns:
         User UUID if valid, None otherwise
+
+    Raises:
+        jwt.ExpiredSignatureError: If token is expired
+        jwt.InvalidTokenError: If token is invalid
     """
     payload = decode_access_token(token)
-    if payload is None:
-        return None
 
     try:
         return UUID(payload.sub)
     except (ValueError, AttributeError):
-        return None
+        # Invalid UUID format
+        raise jwt.InvalidTokenError("Invalid token payload")

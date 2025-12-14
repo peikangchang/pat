@@ -1,6 +1,7 @@
 """Authentication usecase for user registration and login."""
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+import jwt
 
 from app.common.exceptions import (
     UnauthorizedException,
@@ -110,19 +111,24 @@ class AuthUsecase:
             User object
 
         Raises:
-            UnauthorizedException: If token is invalid or user not found
+            TokenExpiredException: If token has expired
+            InvalidTokenException: If token is invalid or user not found
         """
         # Extract user ID from JWT (no DB operation)
-        user_id = extract_user_id_from_token(jwt_token)
-        if not user_id:
-            raise UnauthorizedException("Invalid or expired token")
+        try:
+            user_id = extract_user_id_from_token(jwt_token)
+        except jwt.ExpiredSignatureError:
+            raise TokenExpiredException()
+        except jwt.InvalidTokenError:
+            raise InvalidTokenException()
 
         # Get user from database (DB operation in transaction)
         async with self.session.begin():
             user = await self.user_repo.get_by_id(user_id)
 
         if not user:
-            raise UnauthorizedException("User not found")
+            # User not found means token is invalid (user was deleted)
+            raise InvalidTokenException()
 
         return user
 
@@ -147,8 +153,7 @@ class AuthUsecase:
         Raises:
             TokenExpiredException: If token has expired
             TokenRevokedException: If token has been revoked
-            InvalidTokenException: If token is invalid
-            UnauthorizedException: If user not found
+            InvalidTokenException: If token is invalid or user not found
         """
         # Hash the token (domain service)
         token_hash = hash_token(pat_token)
@@ -174,7 +179,8 @@ class AuthUsecase:
             # Get user
             user = await self.user_repo.get_by_id(token.user_id)
             if not user:
-                raise UnauthorizedException("User not found")
+                # User not found means token is invalid (user was deleted)
+                raise InvalidTokenException()
 
             # Update last used timestamp
             await self.token_repo.update_last_used(token.id)

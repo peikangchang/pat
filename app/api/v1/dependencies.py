@@ -34,7 +34,7 @@ async def get_current_user_from_jwt(
 
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise UnauthorizedException("Invalid authorization header format")
+        raise UnauthorizedException("Invalid token")
 
     jwt_token = parts[1]
 
@@ -71,7 +71,7 @@ async def get_current_token_from_pat(
 
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise UnauthorizedException("Invalid authorization header format")
+        raise UnauthorizedException("Invalid token")
 
     pat_token = parts[1]
 
