@@ -73,10 +73,11 @@ class FCSUsecase:
         if not filename.lower().endswith('.fcs'):
             raise ValidationException("File must be an FCS file (.fcs extension)")
 
-        # Generate unique file ID
+        # Generate unique file ID (check in transaction to avoid autobegin)
         file_id = self._generate_file_id()
-        while await self.fcs_repo.exists_file_id(file_id):
-            file_id = self._generate_file_id()
+        async with self.session.begin():
+            while await self.fcs_repo.exists_file_id(file_id):
+                file_id = self._generate_file_id()
 
         # Save file to disk
         file_path = os.path.join(self.upload_dir, f"{file_id}.fcs")
@@ -91,31 +92,32 @@ class FCSUsecase:
             total_events = len(data)
             total_parameters = len(data.columns)
 
-            # Create FCS file record
-            fcs_file = await self.fcs_repo.create_file(
-                user_id=user_id,
-                file_id=file_id,
-                filename=filename,
-                file_path=file_path,
-                total_events=total_events,
-                total_parameters=total_parameters,
-            )
-
-            # Create parameter records
-            for idx, column in enumerate(data.columns, start=1):
-                pnn = meta.get(f'$P{idx}N', column)
-                pns = meta.get(f'$P{idx}S', column)
-                range_val = int(meta.get(f'$P{idx}R', 1024))
-                display = meta.get(f'$P{idx}D', 'LIN')
-
-                await self.fcs_repo.create_parameter(
-                    file_id=fcs_file.id,
-                    index=idx,
-                    pnn=pnn,
-                    pns=pns,
-                    range_value=range_val,
-                    display=display,
+            # Create FCS file record and parameters in one transaction
+            async with self.session.begin():
+                fcs_file = await self.fcs_repo.create_file(
+                    user_id=user_id,
+                    file_id=file_id,
+                    filename=filename,
+                    file_path=file_path,
+                    total_events=total_events,
+                    total_parameters=total_parameters,
                 )
+
+                # Create parameter records
+                for idx, column in enumerate(data.columns, start=1):
+                    pnn = meta.get(f'$P{idx}N', column)
+                    pns = meta.get(f'$P{idx}S', column)
+                    range_val = int(meta.get(f'$P{idx}R', 1024))
+                    display = meta.get(f'$P{idx}D', 'LIN')
+
+                    await self.fcs_repo.create_parameter(
+                        file_id=fcs_file.id,
+                        index=idx,
+                        pnn=pnn,
+                        pns=pns,
+                        range_value=range_val,
+                        display=display,
+                    )
 
             return {
                 "endpoint": "/api/v1/fcs/upload",
@@ -150,10 +152,14 @@ class FCSUsecase:
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+        # Get FCS file from database
+        async with self.session.begin():
+            fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+
         if not fcs_file:
             raise NotFoundException("No FCS file found")
 
+        # Format parameters outside transaction
         parameters = [
             {
                 "index": param.index,
@@ -195,11 +201,14 @@ class FCSUsecase:
         required_scope = "fcs:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_latest_file(user_id)
+        # Get FCS file from database
+        async with self.session.begin():
+            fcs_file = await self.fcs_repo.get_latest_file(user_id)
+
         if not fcs_file:
             raise NotFoundException("No FCS file found")
 
-        # Parse FCS file to get events
+        # Parse FCS file to get events (outside transaction)
         _, data = fcsparser.parse(fcs_file.file_path, reformat_meta=True)
 
         # Get subset of events
@@ -235,11 +244,14 @@ class FCSUsecase:
         required_scope = "fcs:analyze"
         granted_by = self._find_granted_by(scopes, required_scope)
 
-        fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+        # Get FCS file from database
+        async with self.session.begin():
+            fcs_file = await self.fcs_repo.get_latest_file_with_parameters(user_id)
+
         if not fcs_file:
             raise NotFoundException("No FCS file found")
 
-        # Parse FCS file
+        # Parse FCS file and calculate statistics (outside transaction)
         _, data = fcsparser.parse(fcs_file.file_path, reformat_meta=True)
 
         # Calculate statistics for each parameter
