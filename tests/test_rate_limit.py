@@ -14,6 +14,7 @@ Options:
     --requests COUNT    Number of requests to make (default: limit + 10)
     --verbose           Show detailed output for each request
     --wait SECONDS      Wait time between requests in seconds (default: 0)
+    --shared            Test shared rate limiting across multiple endpoints
 
 Examples:
     # Test with default settings (60 req/min)
@@ -24,6 +25,9 @@ Examples:
 
     # Test specific endpoint with verbose output
     python test_rate_limit.py --endpoint /health --verbose
+
+    # Test shared rate limiting across multiple endpoints
+    python test_rate_limit.py --shared --verbose
 
     # Test with wait time between requests
     python test_rate_limit.py --wait 0.5
@@ -49,6 +53,12 @@ class Colors:
 class RateLimitTester:
     """Test rate limiting functionality."""
 
+    # Endpoints for shared rate limiting test
+    SHARED_ENDPOINTS = [
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+    ]
+
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
@@ -56,7 +66,8 @@ class RateLimitTester:
         endpoint: str = "/api/v1/auth/login",
         num_requests: int = None,
         verbose: bool = False,
-        wait_time: float = 0
+        wait_time: float = 0,
+        shared: bool = False
     ):
         self.base_url = base_url.rstrip('/')
         self.expected_limit = expected_limit
@@ -64,7 +75,9 @@ class RateLimitTester:
         self.num_requests = num_requests or (expected_limit + 10)
         self.verbose = verbose
         self.wait_time = wait_time
+        self.shared = shared
         self.results: List[Dict] = []
+        self.endpoint_counts: Dict[str, int] = {}
 
     def print_header(self):
         """Print test configuration."""
@@ -74,27 +87,48 @@ class RateLimitTester:
 
         print(f"{Colors.BOLD}Configuration:{Colors.END}")
         print(f"  API URL:           {Colors.BLUE}{self.base_url}{Colors.END}")
-        print(f"  Test Endpoint:     {Colors.BLUE}{self.endpoint}{Colors.END}")
+
+        if self.shared:
+            print(f"  Test Mode:         {Colors.YELLOW}Shared (Multiple Endpoints){Colors.END}")
+            print(f"  Endpoints:         {Colors.BLUE}{', '.join(self.SHARED_ENDPOINTS)}{Colors.END}")
+        else:
+            print(f"  Test Mode:         {Colors.YELLOW}Single Endpoint{Colors.END}")
+            print(f"  Test Endpoint:     {Colors.BLUE}{self.endpoint}{Colors.END}")
+
         print(f"  Expected Limit:    {Colors.YELLOW}{self.expected_limit}{Colors.END} requests/minute")
         print(f"  Requests to Make:  {Colors.YELLOW}{self.num_requests}{Colors.END}")
         print(f"  Wait Time:         {Colors.YELLOW}{self.wait_time}{Colors.END} seconds")
         print(f"  Verbose Mode:      {Colors.YELLOW}{self.verbose}{Colors.END}")
         print(f"\n{Colors.CYAN}{'='*70}{Colors.END}\n")
 
-    def make_request(self, request_num: int) -> Dict:
+    def make_request(self, request_num: int, endpoint: str = None) -> Dict:
         """Make a single request and record the result."""
-        url = f"{self.base_url}{self.endpoint}"
+        endpoint = endpoint or self.endpoint
+        url = f"{self.base_url}{endpoint}"
         start_time = time.time()
+
+        # Track endpoint usage
+        self.endpoint_counts[endpoint] = self.endpoint_counts.get(endpoint, 0) + 1
 
         try:
             # Prepare request data based on endpoint
-            if self.endpoint == "/api/v1/auth/login":
+            if endpoint == "/api/v1/auth/login":
                 response = requests.post(
                     url,
                     json={"username": f"test_user_{request_num}", "password": "test_pass"},
                     timeout=5
                 )
-            elif self.endpoint == "/health":
+            elif endpoint == "/api/v1/auth/register":
+                response = requests.post(
+                    url,
+                    json={
+                        "username": f"testuser_{request_num}_{int(time.time())}",
+                        "email": f"test{request_num}_{int(time.time())}@example.com",
+                        "password": "testpass123"
+                    },
+                    timeout=5
+                )
+            elif endpoint == "/health":
                 response = requests.get(url, timeout=5)
             else:
                 response = requests.get(url, timeout=5)
@@ -103,6 +137,7 @@ class RateLimitTester:
 
             result = {
                 "request_num": request_num,
+                "endpoint": endpoint,
                 "status_code": response.status_code,
                 "elapsed_ms": round(elapsed * 1000, 2),
                 "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
@@ -120,6 +155,7 @@ class RateLimitTester:
         except requests.RequestException as e:
             return {
                 "request_num": request_num,
+                "endpoint": endpoint,
                 "status_code": 0,
                 "elapsed_ms": 0,
                 "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
@@ -137,7 +173,15 @@ class RateLimitTester:
         rate_limit_at = None
 
         for i in range(1, self.num_requests + 1):
-            result = self.make_request(i)
+            # Select endpoint for shared mode
+            if self.shared:
+                # Rotate through endpoints
+                endpoint_idx = (i - 1) % len(self.SHARED_ENDPOINTS)
+                endpoint = self.SHARED_ENDPOINTS[endpoint_idx]
+            else:
+                endpoint = None  # Use default
+
+            result = self.make_request(i, endpoint)
             self.results.append(result)
 
             # Print progress
@@ -146,7 +190,8 @@ class RateLimitTester:
                               Colors.RED if result["status_code"] == 429 else \
                               Colors.YELLOW
 
-                print(f"  [{result['timestamp']}] Request {i:3d}: "
+                endpoint_display = f" [{result['endpoint']}]" if self.shared else ""
+                print(f"  [{result['timestamp']}] Request {i:3d}{endpoint_display}: "
                       f"{status_color}{result['status_code']}{Colors.END} "
                       f"({result['elapsed_ms']}ms)")
 
@@ -161,7 +206,11 @@ class RateLimitTester:
             if result["rate_limited"] and not rate_limited:
                 rate_limited = True
                 rate_limit_at = i
-                print(f"\n  {Colors.BOLD}{Colors.RED}✗ Rate limit triggered at request #{i}{Colors.END}\n")
+                if self.shared:
+                    print(f"\n  {Colors.BOLD}{Colors.RED}✗ Rate limit triggered at request #{i} "
+                          f"(endpoint: {result['endpoint']}){Colors.END}\n")
+                else:
+                    print(f"\n  {Colors.BOLD}{Colors.RED}✗ Rate limit triggered at request #{i}{Colors.END}\n")
 
             # Wait between requests if specified
             if self.wait_time > 0 and i < self.num_requests:
@@ -197,6 +246,12 @@ class RateLimitTester:
                    Colors.RED if code == 429 else \
                    Colors.YELLOW
             print(f"  {color}{code}{Colors.END}: {count} requests")
+
+        # Show per-endpoint stats in shared mode
+        if self.shared and self.endpoint_counts:
+            print(f"\n{Colors.BOLD}Requests Per Endpoint:{Colors.END}")
+            for endpoint, count in sorted(self.endpoint_counts.items()):
+                print(f"  {Colors.BLUE}{endpoint}{Colors.END}: {count} requests")
 
         print(f"\n{Colors.BOLD}Rate Limiting:{Colors.END}")
         if rate_limited:
@@ -278,6 +333,11 @@ Examples:
         default=0,
         help='Wait time between requests in seconds (default: 0)'
     )
+    parser.add_argument(
+        '--shared',
+        action='store_true',
+        help='Test shared rate limiting across multiple endpoints'
+    )
 
     args = parser.parse_args()
 
@@ -288,7 +348,8 @@ Examples:
         endpoint=args.endpoint,
         num_requests=args.requests,
         verbose=args.verbose,
-        wait_time=args.wait
+        wait_time=args.wait,
+        shared=args.shared
     )
 
     # Run test

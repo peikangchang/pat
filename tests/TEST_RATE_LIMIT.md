@@ -119,6 +119,78 @@ python test_rate_limit.py --requests 65
 python test_rate_limit.py --url http://production-server.com:8000 --limit 120
 ```
 
+### 8. 測試共享 Rate Limiting（推薦）
+
+**新功能！** 驗證多個 endpoints 共享同一個 rate limit 計數器：
+
+```bash
+# 測試共享 rate limiting
+python test_rate_limit.py --shared --verbose
+```
+
+**輸出範例：**
+```
+======================================================================
+Rate Limiting Test
+======================================================================
+
+Configuration:
+  API URL:           http://localhost:8000
+  Test Mode:         Shared (Multiple Endpoints)
+  Endpoints:         /api/v1/auth/login, /api/v1/auth/register
+  Expected Limit:    60 requests/minute
+  Requests to Make:  70
+  Wait Time:         0 seconds
+  Verbose Mode:      True
+
+======================================================================
+
+Starting test...
+
+  [14:23:45.001] Request   1 [/api/v1/auth/login]: 401 (12.34ms)
+  [14:23:45.015] Request   2 [/api/v1/auth/register]: 200 (156.23ms)
+  [14:23:45.028] Request   3 [/api/v1/auth/login]: 401 (10.45ms)
+  [14:23:45.042] Request   4 [/api/v1/auth/register]: 200 (142.67ms)
+  ...
+  [14:23:46.123] Request  61 [/api/v1/auth/login]: 429 (15.23ms)
+
+  ✗ Rate limit triggered at request #61 (endpoint: /api/v1/auth/login)
+
+======================================================================
+Test Summary
+======================================================================
+
+Response Status Codes:
+  200: 30 requests
+  401: 30 requests
+  429: 10 requests
+
+Requests Per Endpoint:
+  /api/v1/auth/login: 35 requests
+  /api/v1/auth/register: 35 requests
+
+Rate Limiting:
+  Status: ✓ Rate limiting is WORKING
+  Triggered at: Request #61
+  Expected: ~60 requests/minute
+  Accuracy: Excellent (±1 requests)
+
+Performance:
+  Average response time: 45.23ms
+  Min response time: 8.23ms
+  Max response time: 156.23ms
+
+======================================================================
+
+✓ TEST PASSED: Rate limit triggered at request #61 (expected ~60)
+```
+
+**說明：**
+- 腳本會交替向 `/api/v1/auth/login` 和 `/api/v1/auth/register` 發送請求
+- 驗證兩個 endpoints 的請求總數是否共同計入 rate limit
+- 應該在總共 60 個請求左右觸發限制（不是各別 60 個）
+- 這是測試 `application_limits` 行為的最佳方式
+
 ## 完整參數說明
 
 ```
@@ -128,6 +200,7 @@ python test_rate_limit.py --url http://production-server.com:8000 --limit 120
 --requests COUNT    發送的請求數量 (預設: limit + 10)
 --verbose           顯示每個請求的詳細資訊
 --wait SECONDS      請求之間的等待時間（秒）(預設: 0)
+--shared            測試共享 rate limiting（多個 endpoints 共用計數器）
 ```
 
 ## 測試情境範例
@@ -176,6 +249,24 @@ python test_rate_limit.py --wait 0.5 --requests 70 --verbose
 
 # 觀察平均回應時間和 rate limiting 觸發點
 ```
+
+### 情境 5: 驗證共享 Rate Limiting
+
+```bash
+# 啟動服務
+docker compose up -d
+
+# 執行共享測試（推薦）
+python test_rate_limit.py --shared --verbose
+
+# 預期結果:
+# - 請求會交替發送到不同的 endpoints
+# - 總共約 60 個請求後觸發 rate limit
+# - 顯示每個 endpoint 的請求分佈統計
+```
+
+**重要性：**
+這個測試驗證了 `application_limits` 的正確實作。如果 rate limiting 配置錯誤（使用 `default_limits`），則每個 endpoint 會有獨立的 60/minute 限制，這個測試將會失敗。
 
 ## 解讀測試結果
 
