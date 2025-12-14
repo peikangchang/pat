@@ -464,3 +464,171 @@ pytest tests/ -v
 - ⏳ Phase 10: 文檔與部署
 
 **完成度：約 98%**
+
+
+## 2025-12-14 (續) - 完整部署與專案文件
+
+### 完成項目
+
+1. **DEPLOYMENT.md - 完整部署指南**
+   - 前置需求與系統要求（Docker、作業系統、記憶體、儲存空間）
+   - 環境設定（.env 配置、密鑰產生、安全檢查清單）
+   - Docker 部署（開發與生產環境）
+   - 生產環境考量：
+     - Nginx 反向代理配置（含 SSL、安全標頭）
+     - Let's Encrypt SSL 憑證設置
+     - 防火牆配置（ufw）
+     - Docker Compose 生產覆寫配置
+     - 環境變數最佳實務
+   - 監控與維護：
+     - 健康檢查
+     - 日誌監控
+     - 資源監控
+     - 效能監控（Prometheus + Grafana 可選）
+     - 資料庫維護（VACUUM、REINDEX）
+   - 故障排除：
+     - 服務啟動問題
+     - 資料庫連線錯誤
+     - 遷移失敗
+     - 範例 FCS 檔案未載入
+     - 高記憶體使用
+     - 速率限制問題
+   - 備份與還原：
+     - 手動資料庫備份
+     - 自動每日備份腳本（crontab）
+     - 資料庫還原程序
+     - 完整系統備份
+     - 災難復原
+   - 更新與遷移程序
+   - 安全最佳實務清單
+   - 部署檢查清單
+
+2. **README.md - 重新組織專案文件**
+
+   按照使用者要求的優先順序重新組織：
+
+   **第一部分：架構說明**
+   - 技術棧（FastAPI、SQLAlchemy 2.0+、PostgreSQL 16、Docker）
+   - 架構模式（Clean Architecture、Repository Pattern、Use Case Pattern）
+   - 詳細專案結構（各層級職責說明）
+   - 核心功能概覽
+
+   **第二部分：執行方式**
+   - Docker Compose 快速啟動（推薦方式）
+   - 本地開發環境設定
+   - 常用指令集合
+   - 服務說明
+
+   **第三部分：API 範例**
+   - 8 個完整的 curl 範例：
+     1. 註冊使用者
+     2. 登入取得 JWT
+     3. 建立 PAT 權杖
+     4. 使用 PAT 存取 API
+     5. 取得 FCS 統計資料
+     6. 列出使用者的權杖
+     7. 撤銷權杖
+     8. 查看權杖稽核日誌
+   - 每個範例都包含完整的請求和回應 JSON
+
+   **第四部分：設計決策**
+   - 10 個關鍵設計決策的詳細說明：
+     1. Clean Architecture（分層架構）
+     2. Repository Pattern（資料存取抽象）
+     3. 非同步架構（async/await）
+     4. 交易管理（顯式 session.begin()）
+     5. 權限系統設計（階層式 scope）
+     6. PAT 權杖儲存（雜湊 + 前綴）
+     7. FCS 全域共享（最新檔案模式）
+     8. 速率限制（IP 基礎）
+     9. 範例資料自動初始化
+     10. 稽核日誌（中介層）
+
+   **第五部分：其他資訊（精簡）**
+   - 測試資訊（簡要）
+   - 部署連結（指向 DEPLOYMENT.md）
+   - 權限範圍表格
+   - 開發歷史連結（指向 CLAUDE.md）
+   - API 文件連結
+
+### 文件特色
+
+**DEPLOYMENT.md:**
+- 涵蓋從開發到生產的完整部署流程
+- 包含實際可執行的配置檔案（Nginx、systemd）
+- 提供自動化腳本（備份、監控）
+- 詳細的故障排除指南
+- 安全最佳實務與檢查清單
+
+**README.md:**
+- 優先順序明確：架構 → 執行 → API 範例 → 設計決策
+- 實用導向：所有 curl 範例都可直接執行
+- 設計思路透明：詳細說明每個重要決策的理由
+- 避免冗餘：其他資訊精簡並連結到詳細文件
+
+### Commits
+
+1. `b31ded6` - Add comprehensive deployment and README documentation
+
+### 設計考量
+
+**文件結構設計：**
+- README.md 聚焦於「快速上手」和「理解設計」
+- DEPLOYMENT.md 聚焦於「生產部署」和「維運管理」
+- CLAUDE.md 記錄「開發歷程」和「技術決策演變」
+- 三者互補，避免重複
+
+**使用者體驗：**
+1. 新使用者：README.md → 快速啟動 → API 範例
+2. 架構理解：README.md → 設計決策
+3. 生產部署：DEPLOYMENT.md → 完整指南
+4. 技術細節：CLAUDE.md → 開發歷史
+
+### 目前進度
+
+根據原始 10 階段計畫：
+- ✅ Phase 1-7: 基礎架構、Models、Domain、Repository、Usecase、API、Migration、Docker
+- ✅ Phase 8: Rate Limiting 實作與測試
+- ✅ Phase 9: 測試（功能測試 + 完整單元測試套件）
+- ✅ Phase 9.5: 範例資料自動初始化
+- ✅ Phase 10: 文檔與部署
+
+**完成度：100%**
+
+### 專案總結
+
+PAT (Personal Access Token) API 系統現已完全就緒，包含：
+
+**核心功能：**
+- ✅ 個人存取權杖管理（建立、撤銷、生命週期）
+- ✅ 階層式權限系統（workspaces、users、fcs）
+- ✅ FCS 檔案處理與統計分析
+- ✅ 完整使用者隔離
+- ✅ 稽核日誌
+
+**技術實作：**
+- ✅ Clean Architecture 分層設計
+- ✅ 非同步 FastAPI + SQLAlchemy 2.0+
+- ✅ 顯式交易管理
+- ✅ Repository 與 Use Case 模式
+- ✅ Docker 容器化部署
+
+**品質保證：**
+- ✅ 68 個測試，100% 通過率
+- ✅ 完整的權限、安全、隔離測試
+- ✅ FCS API 綜合測試
+- ✅ API 狀態碼覆蓋測試
+
+**文件完整性：**
+- ✅ README.md - 架構、執行、API 範例、設計決策
+- ✅ DEPLOYMENT.md - 完整部署指南
+- ✅ CLAUDE.md - 開發歷程記錄
+- ✅ API 互動式文件（Swagger UI、ReDoc）
+
+**生產就緒：**
+- ✅ Docker Compose 編排
+- ✅ 資料庫遷移自動化
+- ✅ 範例資料自動初始化
+- ✅ 健康檢查端點
+- ✅ 速率限制
+- ✅ 安全最佳實務
