@@ -584,10 +584,6 @@ curl -X POST http://localhost:8000/api/v1/fcs/upload \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/fcs/upload",
-    "method": "POST",
-    "required_scope": "fcs:write",
-    "granted_by": "fcs:analyze",
     "file_id": "019b1bca-5d3e-7f42-8a9b-0c1d2e3f4a5b",
     "filename": "sample.fcs",
     "total_events": 34297,
@@ -610,10 +606,6 @@ curl -X GET http://localhost:8000/api/v1/fcs/parameters \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/fcs/parameters",
-    "method": "GET",
-    "required_scope": "fcs:read",
-    "granted_by": "fcs:analyze",
     "total_events": 34297,
     "total_parameters": 26,
     "parameters": [
@@ -650,10 +642,6 @@ curl -X GET "http://localhost:8000/api/v1/fcs/events?limit=100&offset=0" \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/fcs/events",
-    "method": "GET",
-    "required_scope": "fcs:read",
-    "granted_by": "fcs:analyze",
     "total_events": 34297,
     "limit": 100,
     "offset": 0,
@@ -683,10 +671,6 @@ curl -X GET http://localhost:8000/api/v1/fcs/statistics \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/fcs/statistics",
-    "method": "GET",
-    "required_scope": "fcs:analyze",
-    "granted_by": "fcs:analyze",
     "total_events": 34297,
     "statistics": [
       {

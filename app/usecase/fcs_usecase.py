@@ -109,10 +109,6 @@ class FCSUsecase:
                     )
 
             return {
-                "endpoint": "/api/v1/fcs/upload",
-                "method": "POST",
-                "required_scope": required_scope,
-                "granted_by": granted_by,
                 "file_id": str(fcs_file.id),
                 "filename": filename,
                 "total_events": total_events,
@@ -160,10 +156,6 @@ class FCSUsecase:
         ]
 
         return {
-            "endpoint": "/api/v1/fcs/parameters",
-            "method": "GET",
-            "required_scope": required_scope,
-            "granted_by": granted_by,
             "total_events": fcs_file.total_events,
             "total_parameters": fcs_file.total_parameters,
             "parameters": parameters,
@@ -205,10 +197,6 @@ class FCSUsecase:
         events = events_subset.to_dict(orient='records')
 
         return {
-            "endpoint": "/api/v1/fcs/events",
-            "method": "GET",
-            "required_scope": required_scope,
-            "granted_by": granted_by,
             "total_events": len(data),
             "limit": limit,
             "offset": offset,
@@ -257,10 +245,6 @@ class FCSUsecase:
             })
 
         return {
-            "endpoint": "/api/v1/fcs/statistics",
-            "method": "GET",
-            "required_scope": required_scope,
-            "granted_by": granted_by,
             "total_events": len(data),
             "statistics": statistics,
         }
