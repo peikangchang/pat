@@ -12,7 +12,7 @@
 - **Alembic** - 資料庫遷移工具
 - **Docker Compose** - 容器編排
 - **Pydantic** - 資料驗證
-- **bcrypt** - 密碼雜湊
+- **Argon2** - 密碼雜湊
 - **slowapi** - 速率限制
 
 ### 架構模式
@@ -88,7 +88,10 @@ pat/
 
 2. **權限系統**
    - 資源類型：`workspacess`、`users`、`fcs`
-   - 權限繼承：`admin` > `delete` > `write` > `read`
+   - 權限階層（依資源而異）：
+     - **workspacess**: `admin` > `delete` > `write` > `read`
+     - **users**: `write` > `read`
+     - **fcs**: `analyze` > `write` > `read`
    - 跨資源隔離
 
 3. **FCS 檔案處理**
@@ -98,7 +101,7 @@ pat/
    - 自動初始化範例檔案
 
 4. **安全機制**
-   - 密碼 bcrypt 雜湊
+   - 密碼 Argon2 雜湊
    - 權杖安全儲存（雜湊 + 前綴）
    - 速率限制（60 req/min）
    - 完整稽核日誌
@@ -182,7 +185,17 @@ alembic revision --autogenerate -m "描述"
 
 ## API 範例
 
-### 1. 註冊使用者
+所有 API 回應都遵循統一格式：
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+### 認證 (Auth)
+
+#### 註冊使用者
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
@@ -197,14 +210,17 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 **回應：**
 ```json
 {
-  "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
-  "username": "alice",
-  "email": "alice@example.com",
-  "created_at": "2024-12-14T08:00:00Z"
+  "success": true,
+  "data": {
+    "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
+    "username": "alice",
+    "email": "alice@example.com",
+    "created_at": "2024-12-14T08:00:00Z"
+  }
 }
 ```
 
-### 2. 登入取得 JWT
+#### 登入取得 JWT
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
@@ -218,23 +234,34 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
 **回應：**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "bearer"
+  }
 }
 ```
 
-### 3. 建立 PAT 權杖
+---
+
+### 權杖管理 (Tokens)
+
+**說明：** 以下範例使用 JWT 進行認證。
 
 ```bash
-# 使用 JWT 權杖建立 PAT
+# 儲存 JWT（從登入取得）
 JWT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
 
+#### 建立 PAT 權杖
+
+```bash
 curl -X POST http://localhost:8000/api/v1/tokens \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "FCS 分析權杖",
-    "scopes": ["fcs:read", "fcs:analyze", "workspacess:read"],
+    "scopes": ["fcs:analyze", "workspacess:read"],
     "expires_in_days": 30
   }'
 ```
@@ -242,25 +269,331 @@ curl -X POST http://localhost:8000/api/v1/tokens \
 **回應：**
 ```json
 {
-  "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
-  "name": "FCS 分析權杖",
-  "token": "pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-  "prefix": "pat_7x9k2m4n",
-  "scopes": ["fcs:read", "fcs:analyze", "workspacess:read"],
-  "expires_at": "2025-01-13T08:00:00Z",
-  "created_at": "2024-12-14T08:00:00Z"
+  "success": true,
+  "data": {
+    "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
+    "name": "FCS 分析權杖",
+    "token": "pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+    "prefix": "pat_7x9k2m4n",
+    "scopes": ["fcs:analyze", "workspacess:read"],
+    "expires_at": "2025-01-13T08:00:00Z",
+    "created_at": "2024-12-14T08:00:00Z"
+  }
 }
 ```
 
 **⚠️ 重要：** 完整 `token` 僅在建立時顯示一次，請妥善保存。
 
-### 4. 使用 PAT 存取 API
+#### 列出使用者的權杖
 
 ```bash
-# 儲存 PAT 權杖
-PAT_TOKEN="pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+curl -X GET http://localhost:8000/api/v1/tokens \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
 
-# 取得 FCS 檔案參數
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "tokens": [
+      {
+        "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
+        "name": "FCS 分析權杖",
+        "prefix": "pat_7x9k2m4n",
+        "scopes": ["fcs:analyze", "workspacess:read"],
+        "expires_at": "2025-01-13T08:00:00Z",
+        "revoked_at": null,
+        "last_used_at": "2024-12-14T10:30:00Z",
+        "created_at": "2024-12-14T08:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 取得權杖詳情
+
+```bash
+TOKEN_ID="019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0"
+
+curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
+    "name": "FCS 分析權杖",
+    "prefix": "pat_7x9k2m4n",
+    "scopes": ["fcs:analyze", "workspacess:read"],
+    "expires_at": "2025-01-13T08:00:00Z",
+    "revoked_at": null,
+    "last_used_at": "2024-12-14T10:30:00Z",
+    "created_at": "2024-12-14T08:00:00Z"
+  }
+}
+```
+
+#### 撤銷權杖
+
+```bash
+curl -X DELETE http://localhost:8000/api/v1/tokens/$TOKEN_ID \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Token revoked successfully"
+  }
+}
+```
+
+#### 查看權杖稽核日誌
+
+```bash
+curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID/logs \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "token_id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
+    "token_name": "FCS 分析權杖",
+    "logs": [
+      {
+        "id": "019b1bca-1234-5678-9abc-def012345678",
+        "endpoint": "/api/v1/fcs/parameters",
+        "method": "GET",
+        "status_code": 200,
+        "created_at": "2024-12-14T10:30:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 使用者管理 (Users)
+
+**說明：** 以下範例使用 JWT 進行認證。
+
+#### 取得目前使用者資訊
+
+```bash
+curl -X GET http://localhost:8000/api/v1/users/me \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
+    "username": "alice",
+    "email": "alice@example.com",
+    "created_at": "2024-12-14T08:00:00Z"
+  }
+}
+```
+
+#### 更新使用者資料
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/users/me \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice.new@example.com"
+  }'
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
+    "username": "alice",
+    "email": "alice.new@example.com",
+    "created_at": "2024-12-14T08:00:00Z"
+  }
+}
+```
+
+---
+
+### 工作區管理 (Workspaces)
+
+**說明：** 以下範例使用 PAT 進行認證。
+
+```bash
+# 儲存 PAT（從建立權杖取得）
+PAT_TOKEN="pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+```
+
+#### 列出工作區
+
+**需要權限：** `workspacess:read`
+
+```bash
+curl -X GET http://localhost:8000/api/v1/workspacess \
+  -H "Authorization: Bearer $PAT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/workspacess",
+    "method": "GET",
+    "required_scope": "workspacess:read",
+    "granted_by": "workspacess:read",
+    "workspaces": [
+      {
+        "id": "ws_001",
+        "name": "My Workspace",
+        "created_at": "2024-12-14T09:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 建立工作區
+
+**需要權限：** `workspacess:write`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/workspacess \
+  -H "Authorization: Bearer $PAT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "New Workspace"
+  }'
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/workspacess",
+    "method": "POST",
+    "required_scope": "workspacess:write",
+    "granted_by": "workspacess:write",
+    "workspace": {
+      "id": "ws_002",
+      "name": "New Workspace",
+      "created_at": "2024-12-14T11:00:00Z"
+    }
+  }
+}
+```
+
+#### 刪除工作區
+
+**需要權限：** `workspacess:delete`
+
+```bash
+WORKSPACE_ID="ws_002"
+
+curl -X DELETE http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID \
+  -H "Authorization: Bearer $PAT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/workspacess/{workspace_id}",
+    "method": "DELETE",
+    "required_scope": "workspacess:delete",
+    "granted_by": "workspacess:delete",
+    "message": "Workspace deleted successfully"
+  }
+}
+```
+
+#### 更新工作區設定
+
+**需要權限：** `workspacess:admin`
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID/settings \
+  -H "Authorization: Bearer $PAT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "setting_key": "theme",
+    "setting_value": "dark"
+  }'
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/workspacess/{workspace_id}/settings",
+    "method": "PATCH",
+    "required_scope": "workspacess:admin",
+    "granted_by": "workspacess:admin",
+    "message": "Settings updated successfully"
+  }
+}
+```
+
+---
+
+### FCS 檔案處理
+
+**說明：** 以下範例使用 PAT 進行認證。FCS 檔案為全域共享，所有使用者存取最新上傳的檔案。
+
+#### 上傳 FCS 檔案
+
+**需要權限：** `fcs:write`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/fcs/upload \
+  -H "Authorization: Bearer $PAT_TOKEN" \
+  -F "file=@sample.fcs"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/fcs/upload",
+    "method": "POST",
+    "required_scope": "fcs:write",
+    "granted_by": "fcs:write",
+    "file_id": "019b1bca-5d3e-7f42-8a9b-0c1d2e3f4a5b",
+    "filename": "sample.fcs",
+    "total_events": 34297,
+    "total_parameters": 26
+  }
+}
+```
+
+#### 取得 FCS 參數
+
+**需要權限：** `fcs:read`
+
+```bash
 curl -X GET http://localhost:8000/api/v1/fcs/parameters \
   -H "Authorization: Bearer $PAT_TOKEN"
 ```
@@ -268,23 +601,70 @@ curl -X GET http://localhost:8000/api/v1/fcs/parameters \
 **回應：**
 ```json
 {
-  "file_id": "019b1bca-5d3e-7f42-8a9b-0c1d2e3f4a5b",
-  "filename": "sample.fcs",
-  "total_parameters": 26,
-  "parameters": [
-    {
-      "index": 1,
-      "pnn": "FSC-A",
-      "pns": "Forward Scatter",
-      "range": 262144,
-      "display": "lin"
-    },
-    ...
-  ]
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/fcs/parameters",
+    "method": "GET",
+    "required_scope": "fcs:read",
+    "granted_by": "fcs:analyze",
+    "total_events": 34297,
+    "total_parameters": 26,
+    "parameters": [
+      {
+        "index": 1,
+        "pnn": "FSC-A",
+        "pns": "Forward Scatter",
+        "range": 262144,
+        "display": "lin"
+      },
+      {
+        "index": 2,
+        "pnn": "SSC-A",
+        "pns": "Side Scatter",
+        "range": 262144,
+        "display": "lin"
+      }
+    ]
+  }
 }
 ```
 
-### 5. 取得 FCS 統計資料
+#### 取得 FCS 事件資料
+
+**需要權限：** `fcs:read`
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/fcs/events?limit=100&offset=0" \
+  -H "Authorization: Bearer $PAT_TOKEN"
+```
+
+**回應：**
+```json
+{
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/fcs/events",
+    "method": "GET",
+    "required_scope": "fcs:read",
+    "granted_by": "fcs:analyze",
+    "total_events": 34297,
+    "limit": 100,
+    "offset": 0,
+    "events": [
+      {
+        "FSC-A": 50000.5,
+        "SSC-A": 30000.2,
+        "CD3": 1500.8,
+        "CD4": 2000.1
+      }
+    ]
+  }
+}
+```
+
+#### 取得 FCS 統計資料
+
+**需要權限：** `fcs:analyze`
 
 ```bash
 curl -X GET http://localhost:8000/api/v1/fcs/statistics \
@@ -294,46 +674,39 @@ curl -X GET http://localhost:8000/api/v1/fcs/statistics \
 **回應：**
 ```json
 {
-  "file_id": "019b1bca-5d3e-7f42-8a9b-0c1d2e3f4a5b",
-  "filename": "sample.fcs",
-  "total_events": 34297,
-  "statistics": [
-    {
-      "index": 1,
-      "parameter_name": "FSC-A",
-      "min": 1024.5,
-      "max": 250000.3,
-      "mean": 125000.8,
-      "median": 120000.0,
-      "std": 35000.2
-    },
-    ...
-  ]
+  "success": true,
+  "data": {
+    "endpoint": "/api/v1/fcs/statistics",
+    "method": "GET",
+    "required_scope": "fcs:analyze",
+    "granted_by": "fcs:analyze",
+    "total_events": 34297,
+    "statistics": [
+      {
+        "parameter": "FSC-A",
+        "pns": "Forward Scatter",
+        "display": "lin",
+        "min": 1024.5,
+        "max": 250000.3,
+        "mean": 125000.8,
+        "median": 120000.0,
+        "std": 35000.2
+      },
+      {
+        "parameter": "SSC-A",
+        "pns": "Side Scatter",
+        "display": "lin",
+        "min": 512.2,
+        "max": 180000.5,
+        "mean": 90000.4,
+        "median": 85000.0,
+        "std": 25000.1
+      }
+    ]
+  }
 }
 ```
 
-### 6. 列出使用者的權杖
-
-```bash
-curl -X GET http://localhost:8000/api/v1/tokens \
-  -H "Authorization: Bearer $JWT_TOKEN"
-```
-
-### 7. 撤銷權杖
-
-```bash
-TOKEN_ID="019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0"
-
-curl -X DELETE http://localhost:8000/api/v1/tokens/$TOKEN_ID \
-  -H "Authorization: Bearer $JWT_TOKEN"
-```
-
-### 8. 查看權杖稽核日誌
-
-```bash
-curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID/logs \
-  -H "Authorization: Bearer $JWT_TOKEN"
-```
 
 ## 設計決策
 
@@ -410,10 +783,12 @@ workspacess:admin
       └─ workspacess:write
           └─ workspacess:read
 
+users:write
+  └─ users:read
+
 fcs:analyze
-  └─ fcs:read
-fcs:write
-  └─ fcs:read
+  └─ fcs:write
+      └─ fcs:read
 ```
 
 ### 6. PAT 權杖儲存
@@ -503,7 +878,7 @@ pytest -m permissions                    # 只執行權限測試
 | | `workspacess:admin` | 完整管理（含所有權限） |
 | **FCS** | `fcs:read` | 讀取 FCS 資料 |
 | | `fcs:write` | 上傳 FCS 檔案（含 read） |
-| | `fcs:analyze` | 執行統計分析（含 read） |
+| | `fcs:analyze` | 執行統計分析（含 write, read） |
 | **Users** | `users:read` | 讀取自己的資料 |
 | | `users:write` | 更新自己的資料（含 read） |
 
