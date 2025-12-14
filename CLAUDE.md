@@ -135,3 +135,104 @@ async def register(request_obj: Request, ...):
 - ⏳ Phase 10: 文檔與部署（待完成）
 
 **完成度：約 80%**
+
+## 2025-12-14 - Transaction Management 重構與 Rate Limiting 全局化
+
+### 完成項目
+
+1. **Rate Limiting 全局化**
+   - 將 rate limiting 從僅 auth/token 的 3 個 endpoints 擴展到所有 17 個 API endpoints
+   - 統一使用 60 requests/minute 限制
+   - 實作自訂 429 response 格式，符合設計文件規範
+   - 從 slowapi 提取實際 retry_after 時間
+
+   **修改檔案：**
+   - `app/api/v1/auth.py` - 2 endpoints
+   - `app/api/v1/tokens.py` - 5 endpoints
+   - `app/api/v1/workspaces.py` - 4 endpoints
+   - `app/api/v1/users.py` - 2 endpoints
+   - `app/api/v1/fcs.py` - 4 endpoints
+
+2. **Transaction Management 架構重構**
+
+   **問題診斷：**
+   - 發現 `create_token` endpoint 失敗原因：dependency `get_current_user_from_jwt()` 中的 `authenticate_jwt()` 執行 DB query 觸發 autobegin
+   - 當 usecase 再次嘗試 `session.begin()` 時報錯：`A transaction is already begun on this Session`
+
+   **解決方案：**
+   - 將**所有** DB operations 包在 `async with session.begin():` 中（包括只讀操作）
+   - 遵循最小化 transaction scope 原則：
+     - ✅ DB operations 在 transaction 內
+     - ✅ 業務邏輯、驗證、計算在 transaction 外
+
+   **重構內容：**
+
+   a. **簡化 `get_db()`**
+   ```python
+   async def get_db() -> AsyncSession:
+       async with async_session_maker() as session:
+           yield session
+   ```
+   - 移除冗余的 `session.close()`（context manager 自動處理）
+   - 移除 try-except-finally 塊
+
+   b. **auth_usecase.py 重構**
+   - `register()` - hash password 在外，create user 在 transaction 中
+   - `login()` - DB query 在 transaction 中，密碼驗證和 JWT 生成在外
+   - `authenticate_jwt()` - DB query 在 transaction 中，驗證在外
+   - `authenticate_pat()` - 所有 DB operations（驗證 token、獲取 user、更新 last_used）在同一 transaction
+   - `_log_failed_access()` - 已使用獨立 transaction
+
+   c. **token_usecase.py 重構**
+   - `create_token()` - scope 驗證和過期時間計算在外，DB create 在 transaction 中
+   - `list_tokens()` - DB query 在 transaction 中，數據轉換在外
+   - `get_token()` - DB query 在 transaction 中，權限驗證在外
+   - `revoke_token()` - 讀取和撤銷在同一 transaction（確保原子性）
+   - `get_token_logs()` - 所有 DB queries 在 transaction 中，格式化響應在外
+   - `log_token_usage()` - 已使用獨立 transaction
+
+3. **測試驗證**
+   - ✅ 用戶註冊與登入
+   - ✅ PAT token 創建
+   - ✅ PAT token 認證與授權
+   - ✅ Token 撤銷
+   - ✅ 撤銷的 token 無法使用
+   - ✅ Rate limiting (60/minute)
+   - ✅ 無 autobegin 衝突
+
+### 技術要點
+
+**Transaction Management 最佳實踐：**
+1. 所有 DB operations 必須包在 `session.begin()` 中
+2. 最小化 transaction scope - 只包含必要的 DB operations
+3. 業務邏輯、驗證、計算放在 transaction 外
+4. 相關的多個 DB operations 應在同一 transaction 中（確保原子性）
+5. 獨立的 audit logging 使用獨立 transaction
+
+**避免 Autobegin 的關鍵：**
+- SQLAlchemy async session 在第一次 DB operation 時會自動開始 transaction（autobegin）
+- 如果某處 DB operation 觸發了 autobegin，後續的 `session.begin()` 會失敗
+- 解決方案：確保所有 DB operations 都顯式包在 `session.begin()` 中
+
+### Commits
+
+1. `88eb8bb` - Apply rate limiting to all API endpoints
+2. `0f9f3b8` - Refactor transaction management with minimal scope
+
+### 架構優勢
+
+1. **明確的 Transaction 邊界** - 所有 DB operations 顯式管理
+2. **性能優化** - Transaction scope 最小化，減少鎖定時間
+3. **代碼清晰** - DB 操作和業務邏輯明確分離
+4. **自動管理** - Auto-commit on success, auto-rollback on exceptions
+5. **防止錯誤** - 避免 autobegin 衝突和 transaction 管理錯誤
+
+### 目前進度
+
+根據原始 10 階段計畫：
+- ✅ Phase 1-7: 基礎架構、Models、Domain、Repository、Usecase、API、Migration、Docker
+- ✅ Phase 8: Rate Limiting 實作與測試
+- ⏳ Phase 9: 測試（功能測試已完成，單元測試待實作）
+- ⏳ Phase 10: 文檔與部署
+
+**完成度：約 85%**
