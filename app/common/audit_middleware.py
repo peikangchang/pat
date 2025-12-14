@@ -31,7 +31,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             reason = None
             if not authorized:
                 if response.status_code == 403:
-                    reason = "Permission denied"
+                    reason = "Insufficient permissions"
                 elif response.status_code == 401:
                     reason = "Unauthorized"
                 elif response.status_code >= 500:

@@ -231,7 +231,7 @@ class TokenUsecase:
                     "endpoint": log.endpoint,
                     "status_code": log.status_code,
                     "authorized": log.authorized,
-                    "reason": log.reason,
+                    **({} if log.authorized else {"reason": log.reason}),
                 }
                 for log in logs
             ],
