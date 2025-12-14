@@ -119,7 +119,9 @@ def require_permission(required_scope: str):
 
         if not has_permission(token.scopes, required_scope):
             raise ForbiddenException(
-                f"Missing required permission: {required_scope}"
+                message="Insufficient permissions",
+                required_scope=required_scope,
+                your_scopes=token.scopes,
             )
 
         return token, user

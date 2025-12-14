@@ -200,5 +200,7 @@ class TestValidToken:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
-        assert response.json()["error"] == "Forbidden"
-        assert "permission" in response.json()["message"].lower()
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:write"
+        assert data["data"]["your_scopes"] == ["workspaces:read"]

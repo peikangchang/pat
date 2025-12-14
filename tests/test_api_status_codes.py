@@ -245,6 +245,12 @@ class TestWorkspacesAPIStatusCodes:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert "required_scope" in data["data"]
+        assert data["data"]["required_scope"] == "workspaces:read"
+        assert "your_scopes" in data["data"]
+        assert data["data"]["your_scopes"] == ["fcs:read"]
 
     async def test_create_workspace_200_with_write_permission(
         self, client: AsyncClient, user_a: User, create_pat_token
@@ -269,6 +275,10 @@ class TestWorkspacesAPIStatusCodes:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:write"
+        assert data["data"]["your_scopes"] == ["workspaces:read"]
 
     async def test_delete_workspace_200_with_delete_permission(
         self, client: AsyncClient, user_a: User, create_pat_token
@@ -305,6 +315,10 @@ class TestWorkspacesAPIStatusCodes:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:admin"
+        assert data["data"]["your_scopes"] == ["workspaces:delete"]
 
 
 @pytest.mark.integration
@@ -334,6 +348,10 @@ class TestUsersAPIStatusCodes:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "users:read"
+        assert data["data"]["your_scopes"] == ["workspaces:read"]
 
     async def test_update_current_user_200_with_write_permission(
         self, client: AsyncClient, user_a: User, create_pat_token
@@ -375,6 +393,10 @@ class TestFCSAPIStatusCodes:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "fcs:read"
+        assert data["data"]["your_scopes"] == ["workspaces:read"]
 
 
 @pytest.mark.integration

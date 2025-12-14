@@ -17,8 +17,15 @@ class UnauthorizedException(AppException):
 
 class ForbiddenException(AppException):
     """Raised when user lacks required permissions."""
-    def __init__(self, message: str = "Forbidden"):
+    def __init__(
+        self,
+        message: str = "Forbidden",
+        required_scope: str | None = None,
+        your_scopes: list[str] | None = None,
+    ):
         super().__init__(message, status_code=403)
+        self.required_scope = required_scope
+        self.your_scopes = your_scopes if your_scopes is not None else []
 
 
 class NotFoundException(AppException):

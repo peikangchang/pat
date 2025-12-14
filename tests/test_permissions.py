@@ -62,7 +62,10 @@ class TestPermissionHierarchy:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403, "delete should NOT include admin permission"
-        assert response.json()["error"] == "Forbidden"
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:admin"
+        assert data["data"]["your_scopes"] == ["workspaces:delete"]
 
     async def test_workspaces_write_includes_read(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
@@ -102,6 +105,10 @@ class TestPermissionHierarchy:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403, "write should NOT include delete permission"
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:delete"
+        assert data["data"]["your_scopes"] == ["workspaces:write"]
 
     async def test_workspaces_admin_includes_all_permissions(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
@@ -167,7 +174,10 @@ class TestCrossResourcePermissions:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
-        assert response.json()["error"] == "Forbidden"
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "fcs:read"
+        assert data["data"]["your_scopes"] == ["workspaces:write"]
 
     async def test_fcs_analyze_does_not_include_workspaces_read(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
@@ -191,7 +201,10 @@ class TestCrossResourcePermissions:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
-        assert response.json()["error"] == "Forbidden"
+        data = response.json()
+        assert data["error"] == "Forbidden"
+        assert data["data"]["required_scope"] == "workspaces:read"
+        assert data["data"]["your_scopes"] == ["fcs:analyze"]
 
     async def test_users_write_does_not_include_tokens_read(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token

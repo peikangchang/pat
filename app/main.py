@@ -96,6 +96,13 @@ async def app_exception_handler(request: Request, exc: AppException):
     if hasattr(exc, 'retry_after'):
         response_data["data"] = {"retry_after": exc.retry_after}
 
+    # Add permission details for forbidden exceptions
+    if hasattr(exc, 'required_scope') and exc.required_scope:
+        response_data["data"] = {
+            "required_scope": exc.required_scope,
+            "your_scopes": exc.your_scopes,
+        }
+
     return JSONResponse(
         status_code=exc.status_code,
         content=response_data,
