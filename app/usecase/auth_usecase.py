@@ -49,31 +49,27 @@ class AuthUsecase:
             ServiceUnavailableException: If database connection fails
             InternalServerException: If database operation fails
         """
+        # Hash password (no DB operation)
+        password_hash = hash_password(request.password)
+
         try:
-            # Hash password
-            password_hash = hash_password(request.password)
-
-            # Create user
-            user = await self.user_repo.create(
-                username=request.username,
-                email=request.email,
-                password_hash=password_hash,
-            )
-
-            # Commit transaction
-            await self.session.commit()
+            # Create user in transaction
+            async with self.session.begin():
+                user = await self.user_repo.create(
+                    username=request.username,
+                    email=request.email,
+                    password_hash=password_hash,
+                )
+                # Auto-commit on success
 
             return UserResponse.model_validate(user)
 
         except DuplicateRecordException as e:
-            await self.session.rollback()
-            # Translate repository exception to business exception
+            # Auto-rollback on exception
             raise ValidationException(e.message)
         except DatabaseConnectionException:
-            await self.session.rollback()
             raise ServiceUnavailableException()
         except DatabaseOperationException:
-            await self.session.rollback()
             raise InternalServerException("Failed to create user")
 
     async def login(self, request: UserLoginRequest) -> TokenResponse:
@@ -88,16 +84,18 @@ class AuthUsecase:
         Raises:
             UnauthorizedException: If credentials are invalid
         """
-        # Get user by username
-        user = await self.user_repo.get_by_username(request.username)
+        # Get user by username (DB operation in transaction)
+        async with self.session.begin():
+            user = await self.user_repo.get_by_username(request.username)
+
+        # Verify credentials (no DB operations)
         if not user:
             raise UnauthorizedException("Invalid username or password")
 
-        # Verify password
         if not verify_password(request.password, user.password_hash):
             raise UnauthorizedException("Invalid username or password")
 
-        # Create JWT token
+        # Create JWT token (no DB operation)
         access_token = create_access_token(user.id)
 
         return TokenResponse(access_token=access_token)
@@ -114,13 +112,15 @@ class AuthUsecase:
         Raises:
             UnauthorizedException: If token is invalid or user not found
         """
-        # Extract user ID from JWT (domain service)
+        # Extract user ID from JWT (no DB operation)
         user_id = extract_user_id_from_token(jwt_token)
         if not user_id:
             raise UnauthorizedException("Invalid or expired token")
 
-        # Get user from database
-        user = await self.user_repo.get_by_id(user_id)
+        # Get user from database (DB operation in transaction)
+        async with self.session.begin():
+            user = await self.user_repo.get_by_id(user_id)
+
         if not user:
             raise UnauthorizedException("User not found")
 
@@ -153,34 +153,34 @@ class AuthUsecase:
         # Hash the token (domain service)
         token_hash = hash_token(pat_token)
 
-        # Validate token (repository)
-        is_valid, token = await self.token_repo.is_valid(token_hash)
+        # All DB operations in a single transaction
+        async with self.session.begin():
+            # Validate token (repository)
+            is_valid, token = await self.token_repo.is_valid(token_hash)
 
-        if not is_valid or not token:
-            # Log failed access if token exists
-            if token:
-                await self._log_failed_access(token, client_ip, method, endpoint)
+            if not is_valid or not token:
+                # Log failed access if token exists
+                if token:
+                    await self._log_failed_access(token, client_ip, method, endpoint)
 
-                # Raise specific exception based on failure reason
-                if token.is_revoked:
-                    raise TokenRevokedException()
-                elif datetime.now(timezone.utc) > token.expires_at:
-                    raise TokenExpiredException()
+                    # Raise specific exception based on failure reason
+                    if token.is_revoked:
+                        raise TokenRevokedException()
+                    elif datetime.now(timezone.utc) > token.expires_at:
+                        raise TokenExpiredException()
 
-            raise InvalidTokenException()
+                raise InvalidTokenException()
 
-        # Get user
-        user = await self.user_repo.get_by_id(token.user_id)
-        if not user:
-            raise UnauthorizedException("User not found")
+            # Get user
+            user = await self.user_repo.get_by_id(token.user_id)
+            if not user:
+                raise UnauthorizedException("User not found")
 
-        # Update last used timestamp
-        await self.token_repo.update_last_used(token.id)
+            # Update last used timestamp
+            await self.token_repo.update_last_used(token.id)
+            # Auto-commit on success
 
-        # Commit the update (audit logging is handled separately by middleware)
-        await self.session.commit()
-
-        return token, user
+            return token, user
 
     async def _log_failed_access(
         self,
@@ -205,13 +205,19 @@ class AuthUsecase:
         else:
             reason = "Invalid token"
 
-        # Create audit log
-        await self.audit_repo.create(
-            token_id=token.id,
-            ip_address=client_ip,
-            method=method,
-            endpoint=endpoint,
-            status_code=401,
-            authorized=False,
-            reason=reason,
-        )
+        # Create audit log in independent transaction
+        try:
+            async with self.session.begin():
+                await self.audit_repo.create(
+                    token_id=token.id,
+                    ip_address=client_ip,
+                    method=method,
+                    endpoint=endpoint,
+                    status_code=401,
+                    authorized=False,
+                    reason=reason,
+                )
+                # Auto-commit on success
+        except Exception:
+            # Don't let audit logging errors affect authentication
+            pass

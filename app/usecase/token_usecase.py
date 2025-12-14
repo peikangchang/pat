@@ -51,14 +51,14 @@ class TokenUsecase:
         Raises:
             ValidationException: If scopes are invalid
         """
-        # Validate scopes
+        # Validate scopes (no DB operation)
         valid, invalid_scopes = validate_scopes(request.scopes)
         if not valid:
             raise ValidationException(
                 f"Invalid scopes: {', '.join(invalid_scopes)}"
             )
 
-        # Calculate expiry
+        # Calculate expiry (no DB operation)
         expires_at = calculate_expiry_date(request.expires_in_days)
 
         # Retry token generation if hash collision occurs (extremely rare)
@@ -67,25 +67,24 @@ class TokenUsecase:
         token_info = None
 
         for attempt in range(max_retries):
-            # Generate token
+            # Generate token (no DB operation)
             token_info = create_token_info()
 
             try:
-                # Create token in database
-                token = await self.token_repo.create(
-                    user_id=user_id,
-                    name=request.name,
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=request.scopes,
-                    expires_at=expires_at,
-                )
-                # Commit transaction
-                await self.session.commit()
+                # Create token in database (DB operation in transaction)
+                async with self.session.begin():
+                    token = await self.token_repo.create(
+                        user_id=user_id,
+                        name=request.name,
+                        token_hash=token_info.token_hash,
+                        token_prefix=token_info.token_prefix,
+                        scopes=request.scopes,
+                        expires_at=expires_at,
+                    )
+                    # Auto-commit on success
                 break  # Success, exit retry loop
             except DuplicateRecordException:
-                # Hash collision detected (extremely rare)
-                await self.session.rollback()
+                # Hash collision detected (extremely rare), auto-rollback
                 if attempt == max_retries - 1:
                     raise ValidationException(
                         "Failed to generate unique token after multiple attempts"
@@ -93,10 +92,10 @@ class TokenUsecase:
                 # Retry with new token
                 continue
             except DatabaseConnectionException:
-                await self.session.rollback()
+                # Auto-rollback
                 raise ServiceUnavailableException()
             except DatabaseOperationException:
-                await self.session.rollback()
+                # Auto-rollback
                 raise InternalServerException("Failed to create token")
 
         if not token or not token_info:
@@ -121,8 +120,11 @@ class TokenUsecase:
         Returns:
             TokenListResponse with list of tokens (without full token)
         """
-        tokens = await self.token_repo.list_by_user(user_id)
+        # Get tokens from database (DB operation in transaction)
+        async with self.session.begin():
+            tokens = await self.token_repo.list_by_user(user_id)
 
+        # Transform to response (no DB operation)
         token_items = [TokenListItem.model_validate(token) for token in tokens]
 
         return TokenListResponse(
@@ -144,7 +146,11 @@ class TokenUsecase:
             NotFoundException: If token not found
             ForbiddenException: If token doesn't belong to user
         """
-        token = await self.token_repo.get_by_id(token_id)
+        # Get token from database (DB operation in transaction)
+        async with self.session.begin():
+            token = await self.token_repo.get_by_id(token_id)
+
+        # Validate ownership (no DB operation)
         if not token:
             raise NotFoundException("Token not found")
 
@@ -158,7 +164,7 @@ class TokenUsecase:
 
         Args:
             user_id: User UUID
-            token_id: Token UUID
+            token_id: UUID
 
         Returns:
             TokenDetailResponse
@@ -167,18 +173,18 @@ class TokenUsecase:
             NotFoundException: If token not found
             ForbiddenException: If token doesn't belong to user
         """
-        token = await self.token_repo.get_by_id(token_id)
-        if not token:
-            raise NotFoundException("Token not found")
+        # Get token and revoke in same transaction (both are DB operations)
+        async with self.session.begin():
+            token = await self.token_repo.get_by_id(token_id)
 
-        if token.user_id != user_id:
-            raise ForbiddenException("Access denied to this token")
+            if not token:
+                raise NotFoundException("Token not found")
 
-        # Revoke token
-        revoked_token = await self.token_repo.revoke(token_id)
+            if token.user_id != user_id:
+                raise ForbiddenException("Access denied to this token")
 
-        # Commit transaction
-        await self.session.commit()
+            revoked_token = await self.token_repo.revoke(token_id)
+            # Auto-commit on success
 
         return TokenDetailResponse.model_validate(revoked_token)
 
@@ -200,15 +206,19 @@ class TokenUsecase:
             NotFoundException: If token not found
             ForbiddenException: If token doesn't belong to user
         """
-        token = await self.token_repo.get_by_id(token_id)
-        if not token:
-            raise NotFoundException("Token not found")
+        # Get token and logs in transaction (all DB operations)
+        async with self.session.begin():
+            token = await self.token_repo.get_by_id(token_id)
 
-        if token.user_id != user_id:
-            raise ForbiddenException("Access denied to this token")
+            if not token:
+                raise NotFoundException("Token not found")
 
-        logs, total = await self.audit_repo.list_by_token(token_id, limit=limit, offset=offset)
+            if token.user_id != user_id:
+                raise ForbiddenException("Access denied to this token")
 
+            logs, total = await self.audit_repo.list_by_token(token_id, limit=limit, offset=offset)
+
+        # Format response (no DB operation)
         return {
             "token_id": token.id,
             "token_name": token.name,
