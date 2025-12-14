@@ -3,7 +3,7 @@
 Test cases:
 - Created PAT is not stored in plaintext in DB (only hash and prefix)
 - Valid token with correct permissions returns 200
-- Invalid token returns 401
+- Invalid token returns 401 with "Unauthorized" error
 - Prefix token cannot be used for authentication (returns 401)
 """
 import pytest
@@ -119,7 +119,7 @@ class TestTokenAuthentication:
     async def test_invalid_token_returns_401(
         self, client: AsyncClient
     ):
-        """Test that invalid token returns 401."""
+        """Test that invalid token returns 401 with Unauthorized error."""
         # Use completely invalid token
         invalid_token = "pat_invalid_token_1234567890"
 
@@ -128,12 +128,13 @@ class TestTokenAuthentication:
             headers={"Authorization": f"Bearer {invalid_token}"}
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "InvalidToken"
+        assert response.json()["error"] == "Unauthorized"
+        assert response.json()["message"] == "Invalid token"
 
     async def test_malformed_token_returns_401(
         self, client: AsyncClient
     ):
-        """Test that malformed token returns 401."""
+        """Test that malformed token returns 401 with Unauthorized error."""
         # Use malformed token (not starting with pat_)
         malformed_token = "not_a_valid_token"
 
@@ -142,7 +143,8 @@ class TestTokenAuthentication:
             headers={"Authorization": f"Bearer {malformed_token}"}
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "InvalidToken"
+        assert response.json()["error"] == "Unauthorized"
+        assert response.json()["message"] == "Invalid token"
 
     async def test_prefix_token_cannot_authenticate(
         self, client: AsyncClient, session: AsyncSession,
@@ -169,7 +171,8 @@ class TestTokenAuthentication:
             headers={"Authorization": f"Bearer {token_prefix}"}
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "InvalidToken"
+        assert response.json()["error"] == "Unauthorized"
+        assert response.json()["message"] == "Invalid token"
 
     async def test_missing_authorization_header_returns_401(
         self, client: AsyncClient

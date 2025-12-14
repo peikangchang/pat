@@ -1,8 +1,8 @@
 """Test token expiration and revocation.
 
 Test cases:
-- Expired token returns 401 with "TokenExpired" error
-- Revoked token returns 401 with "TokenRevoked" error
+- Expired token returns 401 with "Unauthorized" error and "Token expired" message
+- Revoked token returns 401 with "Unauthorized" error and "Token revoked" message
 - Valid token works correctly
 """
 import pytest
@@ -22,7 +22,7 @@ class TestTokenExpiration:
     async def test_expired_token_returns_401(
         self, client: AsyncClient, session: AsyncSession, user_a: User
     ):
-        """Test that expired token returns 401 with TokenExpired error."""
+        """Test that expired token returns 401 with Unauthorized error."""
         # Create expired token (expired 1 day ago)
         token_info = create_token_info()
         expires_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -45,8 +45,8 @@ class TestTokenExpiration:
             headers={"Authorization": f"Bearer {token_info.full_token}"}
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "TokenExpired"
-        assert "expired" in response.json()["message"].lower()
+        assert response.json()["error"] == "Unauthorized"
+        assert response.json()["message"] == "Token expired"
 
     async def test_almost_expired_token_still_works(
         self, client: AsyncClient, session: AsyncSession, user_a: User
@@ -83,7 +83,7 @@ class TestTokenRevocation:
     async def test_revoked_token_returns_401(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
     ):
-        """Test that revoked token returns 401 with TokenRevoked error."""
+        """Test that revoked token returns 401 with Unauthorized error."""
         # Create token
         full_token, token = await create_pat_token(
             user_a.id, scopes=["workspacess:read"], name="To Be Revoked"
@@ -110,8 +110,8 @@ class TestTokenRevocation:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 401
-        assert response.json()["error"] == "TokenRevoked"
-        assert "revoked" in response.json()["message"].lower()
+        assert response.json()["error"] == "Unauthorized"
+        assert response.json()["message"] == "Token revoked"
 
     async def test_cannot_revoke_already_revoked_token(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token

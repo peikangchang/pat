@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.common.config import settings
 from app.common.database import init_db, close_db, async_session_maker
-from app.common.exceptions import AppException
+from app.common.exceptions import AppException, UnauthorizedException
 from app.common.responses import error_response
 from app.common.rate_limit import limiter
 from app.common.audit_middleware import AuditLogMiddleware
@@ -94,8 +94,14 @@ app.add_middleware(
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     """Handle custom application exceptions."""
+    # For UnauthorizedException and its subclasses, always use "Unauthorized" as error type
+    if isinstance(exc, UnauthorizedException):
+        error_type = "Unauthorized"
+    else:
+        error_type = exc.__class__.__name__.replace("Exception", "")
+
     response_data = error_response(
-        error=exc.__class__.__name__.replace("Exception", ""),
+        error=error_type,
         message=exc.message
     )
 
