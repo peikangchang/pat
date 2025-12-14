@@ -8,11 +8,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.common.config import settings
-from app.common.database import init_db, close_db
+from app.common.database import init_db, close_db, async_session_maker
 from app.common.exceptions import AppException
 from app.common.responses import error_response
 from app.common.rate_limit import limiter
 from app.common.audit_middleware import AuditLogMiddleware
+from app.common.startup import initialize_sample_fcs_file
 
 
 # Configure logging
@@ -28,7 +29,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     await init_db()
+
+    # Initialize sample FCS file if needed
+    async with async_session_maker() as session:
+        await initialize_sample_fcs_file(session)
+
     yield
+
     # Shutdown
     await close_db()
 

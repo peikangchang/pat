@@ -67,6 +67,7 @@ services:
       # 掛載程式碼以支援熱重載（開發模式）
       - ./app:/app/app
       - ./uploads:/app/uploads
+      - ./sample_data:/app/sample_data
     networks:
       - pat_network
     restart: unless-stopped
