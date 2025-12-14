@@ -27,17 +27,16 @@ class TestTokenExpiration:
         token_info = create_token_info()
         expires_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with session.begin():
-            token = Token(
-                user_id=user_a.id,
-                name="Expired Token",
-                token_hash=token_info.token_hash,
-                token_prefix=token_info.token_prefix,
-                scopes=["workspaces:read"],
-                expires_at=expires_at,
-            )
-            session.add(token)
-
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspaces:read"],
+            expires_at=expires_at,
+        )
+        session.add(token)
+        await session.commit()
         await session.refresh(token)
 
         # Try to use expired token
@@ -57,17 +56,16 @@ class TestTokenExpiration:
         token_info = create_token_info()
         expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-        async with session.begin():
-            token = Token(
-                user_id=user_a.id,
-                name="Almost Expired Token",
-                token_hash=token_info.token_hash,
-                token_prefix=token_info.token_prefix,
-                scopes=["workspaces:read"],
-                expires_at=expires_at,
-            )
-            session.add(token)
-
+        token = Token(
+            user_id=user_a.id,
+            name="Almost Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspaces:read"],
+            expires_at=expires_at,
+        )
+        session.add(token)
+        await session.commit()
         await session.refresh(token)
 
         # Should still work

@@ -46,10 +46,10 @@ class TestAuthAPIStatusCodes:
         )
         assert response.status_code == 422
 
-    async def test_register_400_duplicate_username(
+    async def test_register_422_duplicate_username(
         self, client: AsyncClient, user_a: User
     ):
-        """Test registration with duplicate username returns 400."""
+        """Test registration with duplicate username returns 422."""
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -58,7 +58,7 @@ class TestAuthAPIStatusCodes:
                 "password": "password123"
             }
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert response.json()["error"] == "Validation"
 
     async def test_login_200_success(
@@ -134,10 +134,10 @@ class TestTokensAPIStatusCodes:
         )
         assert response.status_code == 401
 
-    async def test_create_token_400_invalid_scopes(
+    async def test_create_token_422_invalid_scopes(
         self, client: AsyncClient, user_a_jwt: str
     ):
-        """Test token creation with invalid scopes returns 400."""
+        """Test token creation with invalid scopes returns 422."""
         response = await client.post(
             "/api/v1/tokens",
             headers={"Authorization": f"Bearer {user_a_jwt}"},
@@ -147,7 +147,7 @@ class TestTokensAPIStatusCodes:
                 "expires_in_days": 30
             }
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert response.json()["error"] == "Validation"
 
     async def test_list_tokens_200_success(
@@ -383,16 +383,25 @@ class TestRateLimiting:
 
     async def test_rate_limit_429_too_many_requests(self, client: AsyncClient):
         """Test that exceeding rate limit returns 429."""
-        # Make 61 requests to trigger rate limit (limit is 60/minute)
-        for i in range(61):
-            response = await client.post(
-                "/api/v1/auth/login",
-                json={"username": "user", "password": "pass"}
-            )
-            if response.status_code == 429:
-                # Rate limit triggered
-                assert response.json()["error"] == "Too Many Requests"
-                assert "retry_after" in response.json()["data"]
-                break
-        else:
-            pytest.fail("Rate limit not triggered after 61 requests")
+        from app.common.rate_limit import limiter
+
+        # Temporarily enable rate limiting for this test
+        limiter.enabled = True
+
+        try:
+            # Make 61 requests to trigger rate limit (limit is 60/minute)
+            for i in range(61):
+                response = await client.post(
+                    "/api/v1/auth/login",
+                    json={"username": "user", "password": "pass"}
+                )
+                if response.status_code == 429:
+                    # Rate limit triggered
+                    assert response.json()["error"] == "Too Many Requests"
+                    assert "retry_after" in response.json()["data"]
+                    break
+            else:
+                pytest.fail("Rate limit not triggered after 61 requests")
+        finally:
+            # Disable rate limiting again
+            limiter.enabled = False

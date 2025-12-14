@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from app.main import app
 from app.common.database import Base, get_db
 from app.common.config import settings
+from app.common.rate_limit import limiter
 from app.domain.auth_service import hash_password
 from app.domain.token_service import create_token_info, calculate_expiry_date
 from app.models.user import User
@@ -17,7 +18,7 @@ from app.models.token import Token
 
 
 # Test database URL
-TEST_DATABASE_URL = settings.database_url.replace("/pat", "/pat_test")
+TEST_DATABASE_URL = settings.database_url.replace("/pat_db", "/pat_test")
 
 
 @pytest.fixture(scope="session")
@@ -52,10 +53,14 @@ async def test_db():
     # Override dependency
     app.dependency_overrides[get_db] = override_get_db
 
+    # Disable rate limiting in tests
+    limiter.enabled = False
+
     yield async_session_maker
 
     # Cleanup
     app.dependency_overrides.clear()
+    limiter.enabled = True
     await engine.dispose()
 
 
@@ -79,14 +84,13 @@ async def session(test_db) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 async def user_a(session: AsyncSession) -> User:
     """Create test user A."""
-    async with session.begin():
-        user = User(
-            username="user_a",
-            email="user_a@example.com",
-            password_hash=hash_password("password123"),
-        )
-        session.add(user)
-
+    user = User(
+        username="user_a",
+        email="user_a@example.com",
+        password_hash=hash_password("password123"),
+    )
+    session.add(user)
+    await session.commit()
     await session.refresh(user)
     return user
 
@@ -94,14 +98,13 @@ async def user_a(session: AsyncSession) -> User:
 @pytest.fixture
 async def user_b(session: AsyncSession) -> User:
     """Create test user B."""
-    async with session.begin():
-        user = User(
-            username="user_b",
-            email="user_b@example.com",
-            password_hash=hash_password("password123"),
-        )
-        session.add(user)
-
+    user = User(
+        username="user_b",
+        email="user_b@example.com",
+        password_hash=hash_password("password123"),
+    )
+    session.add(user)
+    await session.commit()
     await session.refresh(user)
     return user
 
@@ -142,18 +145,17 @@ async def create_pat_token(session: AsyncSession):
         token_info = create_token_info()
         expires_at = calculate_expiry_date(expires_in_days)
 
-        async with session.begin():
-            token = Token(
-                user_id=user_id,
-                name=name,
-                token_hash=token_info.token_hash,
-                token_prefix=token_info.token_prefix,
-                scopes=scopes,
-                expires_at=expires_at,
-                is_revoked=is_revoked,
-            )
-            session.add(token)
-
+        token = Token(
+            user_id=user_id,
+            name=name,
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=scopes,
+            expires_at=expires_at,
+            is_revoked=is_revoked,
+        )
+        session.add(token)
+        await session.commit()
         await session.refresh(token)
         return token_info.full_token, token
 
@@ -167,16 +169,15 @@ async def expired_token(session: AsyncSession, user_a: User, create_pat_token):
     token_info = create_token_info()
     expires_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-    async with session.begin():
-        token = Token(
-            user_id=user_a.id,
-            name="Expired Token",
-            token_hash=token_info.token_hash,
-            token_prefix=token_info.token_prefix,
-            scopes=["workspaces:read"],
-            expires_at=expires_at,
-        )
-        session.add(token)
-
+    token = Token(
+        user_id=user_a.id,
+        name="Expired Token",
+        token_hash=token_info.token_hash,
+        token_prefix=token_info.token_prefix,
+        scopes=["workspaces:read"],
+        expires_at=expires_at,
+    )
+    session.add(token)
+    await session.commit()
     await session.refresh(token)
     return token_info.full_token, token

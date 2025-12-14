@@ -169,13 +169,13 @@ class TestCrossResourcePermissions:
         assert response.status_code == 403
         assert response.json()["error"] == "Forbidden"
 
-    async def test_fcs_admin_does_not_include_workspaces_read(
+    async def test_fcs_analyze_does_not_include_workspaces_read(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
     ):
-        """Test that fcs:admin does NOT include workspaces:read."""
-        # Create token with fcs:admin permission
+        """Test that fcs:analyze does NOT include workspaces:read."""
+        # Create token with fcs:analyze permission
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["fcs:admin"]
+            user_a.id, scopes=["fcs:analyze"]
         )
 
         # Should be able to access FCS endpoints

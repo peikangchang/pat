@@ -43,11 +43,10 @@ class TestTokenStorage:
         assert full_token.startswith("pat_")
 
         # Check database - should have hash and prefix, but not full token
-        async with session.begin():
-            result = await session.execute(
-                select(Token).where(Token.id == token_id)
-            )
-            token_in_db = result.scalar_one()
+        result = await session.execute(
+            select(Token).where(Token.id == token_id)
+        )
+        token_in_db = result.scalar_one()
 
         # Should have token_hash (not plaintext)
         assert token_in_db.token_hash is not None
