@@ -261,7 +261,7 @@ curl -X POST http://localhost:8000/api/v1/tokens \
   -H "Content-Type: application/json" \
   -d '{
     "name": "FCS 分析權杖",
-    "scopes": ["fcs:analyze", "workspacess:read"],
+    "scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
     "expires_in_days": 30
   }'
 ```
@@ -274,8 +274,8 @@ curl -X POST http://localhost:8000/api/v1/tokens \
     "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
     "name": "FCS 分析權杖",
     "token": "pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-    "prefix": "pat_7x9k2m4n",
-    "scopes": ["fcs:analyze", "workspacess:read"],
+    "token_prefix": "pat_7x9k2m4n",
+    "scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
     "expires_at": "2025-01-13T08:00:00Z",
     "created_at": "2024-12-14T08:00:00Z"
   }
@@ -300,14 +300,15 @@ curl -X GET http://localhost:8000/api/v1/tokens \
       {
         "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
         "name": "FCS 分析權杖",
-        "prefix": "pat_7x9k2m4n",
-        "scopes": ["fcs:analyze", "workspacess:read"],
+        "token_prefix": "pat_7x9k2m4n",
+        "scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
         "expires_at": "2025-01-13T08:00:00Z",
-        "revoked_at": null,
+        "is_revoked": false,
         "last_used_at": "2024-12-14T10:30:00Z",
         "created_at": "2024-12-14T08:00:00Z"
       }
-    ]
+    ],
+    "total": 1
   }
 }
 ```
@@ -328,10 +329,10 @@ curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID \
   "data": {
     "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
     "name": "FCS 分析權杖",
-    "prefix": "pat_7x9k2m4n",
-    "scopes": ["fcs:analyze", "workspacess:read"],
+    "token_prefix": "pat_7x9k2m4n",
+    "scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
     "expires_at": "2025-01-13T08:00:00Z",
-    "revoked_at": null,
+    "is_revoked": false,
     "last_used_at": "2024-12-14T10:30:00Z",
     "created_at": "2024-12-14T08:00:00Z"
   }
@@ -350,7 +351,14 @@ curl -X DELETE http://localhost:8000/api/v1/tokens/$TOKEN_ID \
 {
   "success": true,
   "data": {
-    "message": "Token revoked successfully"
+    "id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
+    "name": "FCS 分析權杖",
+    "token_prefix": "pat_7x9k2m4n",
+    "scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "expires_at": "2025-01-13T08:00:00Z",
+    "is_revoked": true,
+    "last_used_at": "2024-12-14T10:30:00Z",
+    "created_at": "2024-12-14T08:00:00Z"
   }
 }
 ```
@@ -369,13 +377,16 @@ curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID/logs \
   "data": {
     "token_id": "019b1bd2-8f3c-7891-a3b4-d5e6f7a8b9c0",
     "token_name": "FCS 分析權杖",
+    "total_logs": 1,
     "logs": [
       {
-        "id": "019b1bca-1234-5678-9abc-def012345678",
-        "endpoint": "/api/v1/fcs/parameters",
+        "timestamp": "2025-12-14T12:44:35.698328Z",
+        "ip": "192.168.51.100",
         "method": "GET",
+        "endpoint": "/api/v1/fcs/parameters",
         "status_code": 200,
-        "created_at": "2024-12-14T10:30:00Z"
+        "authorized": true,
+        "reason": null
       }
     ]
   }
@@ -386,13 +397,20 @@ curl -X GET http://localhost:8000/api/v1/tokens/$TOKEN_ID/logs \
 
 ### 使用者管理 (Users)
 
-**說明：** 以下範例使用 JWT 進行認證。
+**說明：** 以下範例使用 PAT 進行認證。
+
+```bash
+# 儲存 PAT（從建立 PAT 權杖取得）
+PAT_TOKEN="pat_7x9k2m4n_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+```
 
 #### 取得目前使用者資訊
 
+**需要權限：** `users:read`
+
 ```bash
 curl -X GET http://localhost:8000/api/v1/users/me \
-  -H "Authorization: Bearer $JWT_TOKEN"
+  -H "Authorization: Bearer $PAT_TOKEN"
 ```
 
 **回應：**
@@ -400,23 +418,23 @@ curl -X GET http://localhost:8000/api/v1/users/me \
 {
   "success": true,
   "data": {
-    "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
-    "username": "alice",
-    "email": "alice@example.com",
-    "created_at": "2024-12-14T08:00:00Z"
+    "endpoint": "/api/v1/users/me",
+    "method": "GET",
+    "required_scope": "users:read",
+    "granted_by": "users:write",
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
 
 #### 更新使用者資料
 
+**需要權限：** `users:write`
+
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/users/me \
-  -H "Authorization: Bearer $JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "alice.new@example.com"
-  }'
+curl -X PUT http://localhost:8000/api/v1/users/me \
+  -H "Authorization: Bearer $PAT_TOKEN"
 ```
 
 **回應：**
@@ -424,10 +442,12 @@ curl -X PATCH http://localhost:8000/api/v1/users/me \
 {
   "success": true,
   "data": {
-    "id": "019b1bc9-24f4-7552-92e6-23ebc8b9f948",
-    "username": "alice",
-    "email": "alice.new@example.com",
-    "created_at": "2024-12-14T08:00:00Z"
+    "endpoint": "/api/v1/users/me",
+    "method": "PUT",
+    "required_scope": "users:write",
+    "granted_by": "users:write",
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
@@ -460,14 +480,9 @@ curl -X GET http://localhost:8000/api/v1/workspacess \
     "endpoint": "/api/v1/workspacess",
     "method": "GET",
     "required_scope": "workspacess:read",
-    "granted_by": "workspacess:read",
-    "workspaces": [
-      {
-        "id": "ws_001",
-        "name": "My Workspace",
-        "created_at": "2024-12-14T09:00:00Z"
-      }
-    ]
+    "granted_by": "workspacess:admin",
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
@@ -478,11 +493,7 @@ curl -X GET http://localhost:8000/api/v1/workspacess \
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/workspacess \
-  -H "Authorization: Bearer $PAT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "New Workspace"
-  }'
+  -H "Authorization: Bearer $PAT_TOKEN"
 ```
 
 **回應：**
@@ -493,12 +504,9 @@ curl -X POST http://localhost:8000/api/v1/workspacess \
     "endpoint": "/api/v1/workspacess",
     "method": "POST",
     "required_scope": "workspacess:write",
-    "granted_by": "workspacess:write",
-    "workspace": {
-      "id": "ws_002",
-      "name": "New Workspace",
-      "created_at": "2024-12-14T11:00:00Z"
-    }
+    "granted_by": "workspacess:admin",
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
@@ -519,11 +527,12 @@ curl -X DELETE http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/workspacess/{workspace_id}",
+    "endpoint": "/api/v1/workspacess/ws_002",
     "method": "DELETE",
     "required_scope": "workspacess:delete",
-    "granted_by": "workspacess:delete",
-    "message": "Workspace deleted successfully"
+    "granted_by": "workspacess:admin",
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
@@ -533,13 +542,10 @@ curl -X DELETE http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID \
 **需要權限：** `workspacess:admin`
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID/settings \
-  -H "Authorization: Bearer $PAT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "setting_key": "theme",
-    "setting_value": "dark"
-  }'
+WORKSPACE_ID="ws_002"
+
+curl -X PUT http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID/settings \
+  -H "Authorization: Bearer $PAT_TOKEN"
 ```
 
 **回應：**
@@ -547,11 +553,12 @@ curl -X PATCH http://localhost:8000/api/v1/workspacess/$WORKSPACE_ID/settings \
 {
   "success": true,
   "data": {
-    "endpoint": "/api/v1/workspacess/{workspace_id}/settings",
-    "method": "PATCH",
+    "endpoint": "/api/v1/workspacess/ws_002/settings",
+    "method": "PUT",
     "required_scope": "workspacess:admin",
     "granted_by": "workspacess:admin",
-    "message": "Settings updated successfully"
+    "your_scopes": ["fcs:analyze", "workspacess:admin", "users:write"],
+    "message": "This is a stub implementation"
   }
 }
 ```
@@ -580,7 +587,7 @@ curl -X POST http://localhost:8000/api/v1/fcs/upload \
     "endpoint": "/api/v1/fcs/upload",
     "method": "POST",
     "required_scope": "fcs:write",
-    "granted_by": "fcs:write",
+    "granted_by": "fcs:analyze",
     "file_id": "019b1bca-5d3e-7f42-8a9b-0c1d2e3f4a5b",
     "filename": "sample.fcs",
     "total_events": 34297,
