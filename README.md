@@ -116,6 +116,8 @@ cp .env.example .env
 # 編輯 .env，至少修改：
 # - POSTGRES_PASSWORD（設定強密碼）
 # - JWT_SECRET_KEY（至少 32 字元）
+# 可選配置：
+# - RATE_LIMIT_PER_MINUTE（預設 60，可調整 API 速率限制）
 
 # 2. 啟動所有服務
 docker compose up -d
@@ -808,13 +810,24 @@ fcs:analyze
 
 ### 8. 速率限制
 
-**決策：** 全局 60 req/min 基於 IP 位址
+**決策：** 可配置的速率限制（預設 60 req/min），基於 IP 位址
 
 **理由：**
 - **防止濫用** - 限制暴力攻擊和過度使用
 - **保護資源** - 防止單一使用者耗盡系統資源
-- **可配置** - 透過環境變數調整
+- **可配置** - 透過環境變數 `RATE_LIMIT_PER_MINUTE` 調整
 - **IP 基礎** - 即使未認證也能限制
+- **靈活部署** - 不同環境可設定不同限制值
+
+**配置方式：**
+```bash
+# .env 檔案或環境變數
+RATE_LIMIT_PER_MINUTE=100  # 每分鐘 100 次請求
+
+# docker-compose.yml
+environment:
+  - RATE_LIMIT_PER_MINUTE=120
+```
 
 ### 9. 範例資料自動初始化
 
@@ -842,8 +855,8 @@ fcs:analyze
 
 ### 測試
 
-- **68 個測試，100% 通過率**
-- 涵蓋：權限、權杖生命週期、安全、使用者隔離、FCS API、狀態碼
+- **73 個測試，100% 通過率**
+- 涵蓋：權限、權杖生命週期、安全、使用者隔離、FCS API、狀態碼、速率限制配置
 
 ```bash
 pytest tests/ -v                          # 執行所有測試
