@@ -39,7 +39,9 @@ async def create_token(
 
 
 @router.get("/tokens", response_model=dict)
+@limiter.limit("60/minute")
 async def list_tokens(
+    request: Request,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db),
 ):
@@ -58,7 +60,9 @@ async def list_tokens(
 
 
 @router.get("/tokens/{token_id}", response_model=dict)
+@limiter.limit("60/minute")
 async def get_token(
+    request: Request,
     token_id: UUID,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db),
@@ -79,7 +83,9 @@ async def get_token(
 
 
 @router.delete("/tokens/{token_id}", response_model=dict)
+@limiter.limit("60/minute")
 async def revoke_token(
+    request: Request,
     token_id: UUID,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db),
@@ -100,7 +106,9 @@ async def revoke_token(
 
 
 @router.get("/tokens/{token_id}/logs", response_model=dict)
+@limiter.limit("60/minute")
 async def get_token_logs(
+    request: Request,
     token_id: UUID,
     current_user: CurrentUser,
     limit: int = Query(default=100, ge=1, le=1000),

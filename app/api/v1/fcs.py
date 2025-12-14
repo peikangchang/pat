@@ -1,9 +1,10 @@
 """FCS (Flow Cytometry Standard) file management API endpoints."""
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Query, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
+from app.common.rate_limit import limiter
 from app.usecase.fcs_usecase import FCSUsecase
 from .dependencies import CurrentTokenUser, require_permission
 
@@ -11,7 +12,9 @@ router = APIRouter()
 
 
 @router.post("/fcs/upload", response_model=dict, dependencies=[Depends(require_permission("fcs:write"))])
+@limiter.limit("60/minute")
 async def upload_fcs_file(
+    request: Request,
     token_user: CurrentTokenUser,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db),
@@ -45,7 +48,9 @@ async def upload_fcs_file(
 
 
 @router.get("/fcs/parameters", response_model=dict, dependencies=[Depends(require_permission("fcs:read"))])
+@limiter.limit("60/minute")
 async def get_fcs_parameters(
+    request: Request,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):
@@ -67,7 +72,9 @@ async def get_fcs_parameters(
 
 
 @router.get("/fcs/events", response_model=dict, dependencies=[Depends(require_permission("fcs:read"))])
+@limiter.limit("60/minute")
 async def get_fcs_events(
+    request: Request,
     token_user: CurrentTokenUser,
     limit: int = Query(default=100, ge=1, le=10000),
     offset: int = Query(default=0, ge=0),
@@ -93,7 +100,9 @@ async def get_fcs_events(
 
 
 @router.get("/fcs/statistics", response_model=dict, dependencies=[Depends(require_permission("fcs:analyze"))])
+@limiter.limit("60/minute")
 async def get_fcs_statistics(
+    request: Request,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):

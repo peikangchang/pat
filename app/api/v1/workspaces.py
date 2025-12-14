@@ -1,9 +1,10 @@
 """Workspace management API endpoints."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
+from app.common.rate_limit import limiter
 from app.usecase.workspace_usecase import WorkspaceUsecase
 from .dependencies import CurrentTokenUser, require_permission
 
@@ -11,7 +12,9 @@ router = APIRouter()
 
 
 @router.get("/workspaces", response_model=dict, dependencies=[Depends(require_permission("workspaces:read"))])
+@limiter.limit("60/minute")
 async def list_workspaces(
+    request: Request,
     token_user: CurrentTokenUser,
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -37,7 +40,9 @@ async def list_workspaces(
 
 
 @router.post("/workspaces", response_model=dict, dependencies=[Depends(require_permission("workspaces:write"))])
+@limiter.limit("60/minute")
 async def create_workspace(
+    request: Request,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
 ):
@@ -59,7 +64,9 @@ async def create_workspace(
 
 
 @router.delete("/workspaces/{id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:delete"))])
+@limiter.limit("60/minute")
 async def delete_workspace(
+    request: Request,
     id: str,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
@@ -83,7 +90,9 @@ async def delete_workspace(
 
 
 @router.put("/workspaces/{id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspaces:admin"))])
+@limiter.limit("60/minute")
 async def update_workspace_settings(
+    request: Request,
     id: str,
     token_user: CurrentTokenUser,
     session: AsyncSession = Depends(get_db),
