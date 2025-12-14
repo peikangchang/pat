@@ -174,7 +174,7 @@ async def expired_token(session: AsyncSession, user_a: User, create_pat_token):
         name="Expired Token",
         token_hash=token_info.token_hash,
         token_prefix=token_info.token_prefix,
-        scopes=["workspaces:read"],
+        scopes=["workspacess:read"],
         expires_at=expires_at,
     )
     session.add(token)

@@ -114,7 +114,7 @@ class TestTokensAPIStatusCodes:
             headers={"Authorization": f"Bearer {user_a_jwt}"},
             json={
                 "name": "Test Token",
-                "scopes": ["workspaces:read"],
+                "scopes": ["workspacess:read"],
                 "expires_in_days": 30
             }
         )
@@ -128,7 +128,7 @@ class TestTokensAPIStatusCodes:
             "/api/v1/tokens",
             json={
                 "name": "Test Token",
-                "scopes": ["workspaces:read"],
+                "scopes": ["workspacess:read"],
                 "expires_in_days": 30
             }
         )
@@ -165,7 +165,7 @@ class TestTokensAPIStatusCodes:
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
     ):
         """Test getting token details returns 200."""
-        _, token = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        _, token = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.get(
             f"/api/v1/tokens/{token.id}",
@@ -190,7 +190,7 @@ class TestTokensAPIStatusCodes:
         user_a_jwt: str, create_pat_token
     ):
         """Test getting another user's token returns 403."""
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"])
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"])
 
         response = await client.get(
             f"/api/v1/tokens/{token_b.id}",
@@ -203,7 +203,7 @@ class TestTokensAPIStatusCodes:
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
     ):
         """Test revoking token returns 200."""
-        _, token = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        _, token = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.delete(
             f"/api/v1/tokens/{token.id}",
@@ -221,17 +221,17 @@ class TestWorkspacesAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test listing workspaces with read permission returns 200."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
 
     async def test_list_workspaces_401_no_auth(self, client: AsyncClient):
         """Test listing workspaces without auth returns 401."""
-        response = await client.get("/api/v1/workspaces")
+        response = await client.get("/api/v1/workspacess")
         assert response.status_code == 401
 
     async def test_list_workspaces_403_insufficient_permission(
@@ -241,14 +241,14 @@ class TestWorkspacesAPIStatusCodes:
         full_token, _ = await create_pat_token(user_a.id, scopes=["fcs:read"])
 
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
         data = response.json()
         assert data["error"] == "Forbidden"
         assert "required_scope" in data["data"]
-        assert data["data"]["required_scope"] == "workspaces:read"
+        assert data["data"]["required_scope"] == "workspacess:read"
         assert "your_scopes" in data["data"]
         assert data["data"]["your_scopes"] == ["fcs:read"]
 
@@ -256,10 +256,10 @@ class TestWorkspacesAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test creating workspace with write permission returns 200."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:write"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:write"])
 
         response = await client.post(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -268,26 +268,26 @@ class TestWorkspacesAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test creating workspace with only read permission returns 403."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.post(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
         data = response.json()
         assert data["error"] == "Forbidden"
-        assert data["data"]["required_scope"] == "workspaces:write"
-        assert data["data"]["your_scopes"] == ["workspaces:read"]
+        assert data["data"]["required_scope"] == "workspacess:write"
+        assert data["data"]["your_scopes"] == ["workspacess:read"]
 
     async def test_delete_workspace_200_with_delete_permission(
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test deleting workspace with delete permission returns 200."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:delete"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:delete"])
 
         response = await client.delete(
-            "/api/v1/workspaces/test-id",
+            "/api/v1/workspacess/test-id",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -296,10 +296,10 @@ class TestWorkspacesAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test updating workspace settings with admin permission returns 200."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:admin"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:admin"])
 
         response = await client.put(
-            "/api/v1/workspaces/test-id/settings",
+            "/api/v1/workspacess/test-id/settings",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -308,17 +308,17 @@ class TestWorkspacesAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test updating settings without admin permission returns 403."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:delete"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:delete"])
 
         response = await client.put(
-            "/api/v1/workspaces/test-id/settings",
+            "/api/v1/workspacess/test-id/settings",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
         data = response.json()
         assert data["error"] == "Forbidden"
-        assert data["data"]["required_scope"] == "workspaces:admin"
-        assert data["data"]["your_scopes"] == ["workspaces:delete"]
+        assert data["data"]["required_scope"] == "workspacess:admin"
+        assert data["data"]["your_scopes"] == ["workspacess:delete"]
 
 
 @pytest.mark.integration
@@ -341,7 +341,7 @@ class TestUsersAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test getting current user without permission returns 403."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.get(
             "/api/v1/users/me",
@@ -351,7 +351,7 @@ class TestUsersAPIStatusCodes:
         data = response.json()
         assert data["error"] == "Forbidden"
         assert data["data"]["required_scope"] == "users:read"
-        assert data["data"]["your_scopes"] == ["workspaces:read"]
+        assert data["data"]["your_scopes"] == ["workspacess:read"]
 
     async def test_update_current_user_200_with_write_permission(
         self, client: AsyncClient, user_a: User, create_pat_token
@@ -386,7 +386,7 @@ class TestFCSAPIStatusCodes:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test getting FCS parameters without permission returns 403."""
-        full_token, _ = await create_pat_token(user_a.id, scopes=["workspaces:read"])
+        full_token, _ = await create_pat_token(user_a.id, scopes=["workspacess:read"])
 
         response = await client.get(
             "/api/v1/fcs/parameters",
@@ -396,7 +396,7 @@ class TestFCSAPIStatusCodes:
         data = response.json()
         assert data["error"] == "Forbidden"
         assert data["data"]["required_scope"] == "fcs:read"
-        assert data["data"]["your_scopes"] == ["workspaces:read"]
+        assert data["data"]["your_scopes"] == ["workspacess:read"]
 
 
 @pytest.mark.integration

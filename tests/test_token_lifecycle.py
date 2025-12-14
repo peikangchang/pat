@@ -32,7 +32,7 @@ class TestTokenExpiration:
             name="Expired Token",
             token_hash=token_info.token_hash,
             token_prefix=token_info.token_prefix,
-            scopes=["workspaces:read"],
+            scopes=["workspacess:read"],
             expires_at=expires_at,
         )
         session.add(token)
@@ -41,7 +41,7 @@ class TestTokenExpiration:
 
         # Try to use expired token
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {token_info.full_token}"}
         )
         assert response.status_code == 401
@@ -61,7 +61,7 @@ class TestTokenExpiration:
             name="Almost Expired Token",
             token_hash=token_info.token_hash,
             token_prefix=token_info.token_prefix,
-            scopes=["workspaces:read"],
+            scopes=["workspacess:read"],
             expires_at=expires_at,
         )
         session.add(token)
@@ -70,7 +70,7 @@ class TestTokenExpiration:
 
         # Should still work
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {token_info.full_token}"}
         )
         assert response.status_code == 200
@@ -86,12 +86,12 @@ class TestTokenRevocation:
         """Test that revoked token returns 401 with TokenRevoked error."""
         # Create token
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"], name="To Be Revoked"
+            user_a.id, scopes=["workspacess:read"], name="To Be Revoked"
         )
 
         # Verify token works
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -106,7 +106,7 @@ class TestTokenRevocation:
 
         # Try to use revoked token
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 401
@@ -119,7 +119,7 @@ class TestTokenRevocation:
         """Test that revoking an already revoked token still succeeds (idempotent)."""
         # Create token
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"], name="To Be Revoked"
+            user_a.id, scopes=["workspacess:read"], name="To Be Revoked"
         )
 
         # Revoke token first time
@@ -143,7 +143,7 @@ class TestTokenRevocation:
         """Test that revoked tokens still appear in token list."""
         # Create and revoke token
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"], name="Revoked Token"
+            user_a.id, scopes=["workspacess:read"], name="Revoked Token"
         )
 
         response = await client.delete(
@@ -172,14 +172,14 @@ class TestValidToken:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test that valid token with correct permissions returns 200."""
-        # Create token with workspaces:read permission
+        # Create token with workspacess:read permission
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"]
+            user_a.id, scopes=["workspacess:read"]
         )
 
         # Should work
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -191,16 +191,16 @@ class TestValidToken:
         """Test that valid token without required permission returns 403."""
         # Create token with only read permission
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"]
+            user_a.id, scopes=["workspacess:read"]
         )
 
-        # Try to write (requires workspaces:write)
+        # Try to write (requires workspacess:write)
         response = await client.post(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
         data = response.json()
         assert data["error"] == "Forbidden"
-        assert data["data"]["required_scope"] == "workspaces:write"
-        assert data["data"]["your_scopes"] == ["workspaces:read"]
+        assert data["data"]["required_scope"] == "workspacess:write"
+        assert data["data"]["your_scopes"] == ["workspacess:read"]

@@ -21,8 +21,8 @@ class TestUserIsolation:
     ):
         """Test that User A cannot see User B's tokens."""
         # Create tokens for both users
-        _, token_a = await create_pat_token(user_a.id, scopes=["workspaces:read"], name="Token A")
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"], name="Token B")
+        _, token_a = await create_pat_token(user_a.id, scopes=["workspacess:read"], name="Token A")
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"], name="Token B")
 
         # User A lists their tokens
         response = await client.get(
@@ -50,7 +50,7 @@ class TestUserIsolation:
     ):
         """Test that User A cannot get details of User B's token."""
         # Create token for User B
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"], name="Token B")
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"], name="Token B")
 
         # User A tries to get User B's token details
         response = await client.get(
@@ -67,7 +67,7 @@ class TestUserIsolation:
     ):
         """Test that User A cannot revoke User B's token."""
         # Create token for User B
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"], name="Token B")
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"], name="Token B")
 
         # User A tries to revoke User B's token
         response = await client.delete(
@@ -83,7 +83,7 @@ class TestUserIsolation:
     ):
         """Test that User A cannot view User B's token audit logs."""
         # Create token for User B
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"], name="Token B")
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"], name="Token B")
 
         # User A tries to view User B's token logs
         response = await client.get(
@@ -99,8 +99,8 @@ class TestUserIsolation:
     ):
         """Test that users can only access their own tokens."""
         # Create tokens for both users
-        _, token_a = await create_pat_token(user_a.id, scopes=["workspaces:read"], name="Token A")
-        _, token_b = await create_pat_token(user_b.id, scopes=["workspaces:read"], name="Token B")
+        _, token_a = await create_pat_token(user_a.id, scopes=["workspacess:read"], name="Token A")
+        _, token_b = await create_pat_token(user_b.id, scopes=["workspacess:read"], name="Token B")
 
         # User A can access their own token
         response = await client.get(

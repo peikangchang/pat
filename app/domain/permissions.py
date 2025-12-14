@@ -5,7 +5,7 @@ from typing import Any
 
 class ResourceType(str, Enum):
     """Resource types."""
-    WORKSPACES = "workspaces"
+    WORKSPACESS = "workspacess"
     USERS = "users"
     FCS = "fcs"
 
@@ -33,7 +33,7 @@ class FCSPermission(str, Enum):
 
 # Permission hierarchy definitions (higher level includes all lower levels)
 PERMISSION_HIERARCHY: dict[str, dict[str, list[str]]] = {
-    ResourceType.WORKSPACES: {
+    ResourceType.WORKSPACESS: {
         WorkspacesPermission.ADMIN: [
             WorkspacesPermission.DELETE,
             WorkspacesPermission.WRITE,
@@ -61,7 +61,7 @@ PERMISSION_HIERARCHY: dict[str, dict[str, list[str]]] = {
 
 
 def format_scope(resource: str, permission: str) -> str:
-    """Format a scope string (e.g., 'workspaces:read')."""
+    """Format a scope string (e.g., 'workspacess:read')."""
     return f"{resource}:{permission}"
 
 
@@ -69,7 +69,7 @@ def parse_scope(scope: str) -> tuple[str, str]:
     """Parse a scope string into resource and permission.
 
     Args:
-        scope: Scope string (e.g., 'workspaces:read')
+        scope: Scope string (e.g., 'workspacess:read')
 
     Returns:
         Tuple of (resource, permission)
@@ -87,14 +87,14 @@ def get_implied_permissions(resource: str, permission: str) -> list[str]:
     """Get all permissions implied by the given permission (including itself).
 
     Args:
-        resource: Resource type (e.g., 'workspaces')
+        resource: Resource type (e.g., 'workspacess')
         permission: Permission level (e.g., 'admin')
 
     Returns:
         List of all implied permissions including the given one
 
     Example:
-        >>> get_implied_permissions('workspaces', 'admin')
+        >>> get_implied_permissions('workspacess', 'admin')
         ['admin', 'delete', 'write', 'read']
     """
     if resource not in PERMISSION_HIERARCHY:
@@ -112,16 +112,16 @@ def has_permission(user_scopes: list[str], required_scope: str) -> bool:
     """Check if user has the required permission.
 
     Args:
-        user_scopes: List of scopes the user has (e.g., ['workspaces:admin', 'fcs:read'])
-        required_scope: The required scope (e.g., 'workspaces:write')
+        user_scopes: List of scopes the user has (e.g., ['workspacess:admin', 'fcs:read'])
+        required_scope: The required scope (e.g., 'workspacess:write')
 
     Returns:
         True if user has the required permission (directly or through hierarchy)
 
     Example:
-        >>> has_permission(['workspaces:admin'], 'workspaces:read')
+        >>> has_permission(['workspacess:admin'], 'workspacess:read')
         True
-        >>> has_permission(['workspaces:read'], 'workspaces:write')
+        >>> has_permission(['workspacess:read'], 'workspacess:write')
         False
     """
     try:

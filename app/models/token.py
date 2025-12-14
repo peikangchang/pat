@@ -15,7 +15,7 @@ class Token(Base):
     name = Column(String(100), nullable=False)
     token_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hash
     token_prefix = Column(String(12), nullable=False, index=True)  # pat_ + first 8 chars
-    scopes = Column(JSON, nullable=False, default=list)  # ["workspaces:read", "fcs:write", ...]
+    scopes = Column(JSON, nullable=False, default=list)  # ["workspacess:read", "fcs:write", ...]
     expires_at = Column(DateTime(timezone=True), nullable=False)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     is_revoked = Column(Boolean, default=False, nullable=False)

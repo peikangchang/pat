@@ -53,11 +53,11 @@ class WorkspaceUsecase:
         Returns:
             Mock workspace list
         """
-        required_scope = "workspaces:read"
+        required_scope = "workspacess:read"
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": "/api/v1/workspaces",
+            "endpoint": "/api/v1/workspacess",
             "method": "GET",
             "required_scope": required_scope,
             "granted_by": granted_by,
@@ -78,11 +78,11 @@ class WorkspaceUsecase:
         Returns:
             Mock create result
         """
-        required_scope = "workspaces:write"
+        required_scope = "workspacess:write"
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": "/api/v1/workspaces",
+            "endpoint": "/api/v1/workspacess",
             "method": "POST",
             "required_scope": required_scope,
             "granted_by": granted_by,
@@ -105,11 +105,11 @@ class WorkspaceUsecase:
         Returns:
             Mock delete result
         """
-        required_scope = "workspaces:delete"
+        required_scope = "workspacess:delete"
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": f"/api/v1/workspaces/{workspace_id}",
+            "endpoint": f"/api/v1/workspacess/{workspace_id}",
             "method": "DELETE",
             "required_scope": required_scope,
             "granted_by": granted_by,
@@ -128,11 +128,11 @@ class WorkspaceUsecase:
         Returns:
             Mock settings update result
         """
-        required_scope = "workspaces:admin"
+        required_scope = "workspacess:admin"
         granted_by = self._find_granted_by(scopes, required_scope)
 
         return {
-            "endpoint": f"/api/v1/workspaces/{workspace_id}/settings",
+            "endpoint": f"/api/v1/workspacess/{workspace_id}/settings",
             "method": "PUT",
             "required_scope": required_scope,
             "granted_by": granted_by,

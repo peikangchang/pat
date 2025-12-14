@@ -105,7 +105,7 @@ def require_permission(required_scope: str):
     """Dependency to check if token has required permission.
 
     Args:
-        required_scope: Required scope (e.g., 'workspaces:read')
+        required_scope: Required scope (e.g., 'workspacess:read')
 
     Returns:
         Dependency function

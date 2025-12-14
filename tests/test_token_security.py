@@ -30,7 +30,7 @@ class TestTokenStorage:
             headers={"Authorization": f"Bearer {user_a_jwt}"},
             json={
                 "name": "Security Test Token",
-                "scopes": ["workspaces:read"],
+                "scopes": ["workspacess:read"],
                 "expires_in_days": 30
             }
         )
@@ -75,7 +75,7 @@ class TestTokenStorage:
             headers={"Authorization": f"Bearer {user_a_jwt}"},
             json={
                 "name": "Hash Test Token",
-                "scopes": ["workspaces:read"],
+                "scopes": ["workspacess:read"],
                 "expires_in_days": 30
             }
         )
@@ -103,14 +103,14 @@ class TestTokenAuthentication:
         self, client: AsyncClient, user_a: User, create_pat_token
     ):
         """Test that valid token with correct permission works."""
-        # Create token with workspaces:read permission
+        # Create token with workspacess:read permission
         full_token, token = await create_pat_token(
-            user_a.id, scopes=["workspaces:read"]
+            user_a.id, scopes=["workspacess:read"]
         )
 
         # Should successfully access resource
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
@@ -124,7 +124,7 @@ class TestTokenAuthentication:
         invalid_token = "pat_invalid_token_1234567890"
 
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {invalid_token}"}
         )
         assert response.status_code == 401
@@ -138,7 +138,7 @@ class TestTokenAuthentication:
         malformed_token = "not_a_valid_token"
 
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {malformed_token}"}
         )
         assert response.status_code == 401
@@ -155,7 +155,7 @@ class TestTokenAuthentication:
             headers={"Authorization": f"Bearer {user_a_jwt}"},
             json={
                 "name": "Prefix Test Token",
-                "scopes": ["workspaces:read"],
+                "scopes": ["workspacess:read"],
                 "expires_in_days": 30
             }
         )
@@ -165,7 +165,7 @@ class TestTokenAuthentication:
 
         # Try to use prefix token for authentication
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {token_prefix}"}
         )
         assert response.status_code == 401
@@ -175,7 +175,7 @@ class TestTokenAuthentication:
         self, client: AsyncClient
     ):
         """Test that missing authorization header returns 401."""
-        response = await client.get("/api/v1/workspaces")
+        response = await client.get("/api/v1/workspacess")
         assert response.status_code == 401
         assert response.json()["error"] == "Unauthorized"
 
@@ -185,14 +185,14 @@ class TestTokenAuthentication:
         """Test that invalid authorization header format returns 401."""
         # Missing "Bearer" prefix
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": "pat_token123"}
         )
         assert response.status_code == 401
 
         # Wrong prefix
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": "Basic pat_token123"}
         )
         assert response.status_code == 401
@@ -202,7 +202,7 @@ class TestTokenAuthentication:
     ):
         """Test that empty token returns 401."""
         response = await client.get(
-            "/api/v1/workspaces",
+            "/api/v1/workspacess",
             headers={"Authorization": "Bearer "}
         )
         assert response.status_code == 401

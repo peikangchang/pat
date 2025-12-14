@@ -11,7 +11,7 @@ from .dependencies import CurrentTokenUser, require_permission
 router = APIRouter()
 
 
-@router.get("/workspaces", response_model=dict, dependencies=[Depends(require_permission("workspaces:read"))])
+@router.get("/workspacess", response_model=dict, dependencies=[Depends(require_permission("workspacess:read"))])
 @limiter.limit("60/minute")
 async def list_workspaces(
     request: Request,
@@ -22,7 +22,7 @@ async def list_workspaces(
 ):
     """List all workspaces accessible by the token.
 
-    Requires: workspaces:read permission
+    Requires: workspacess:read permission
 
     Args:
         token_user: Current token and user
@@ -39,7 +39,7 @@ async def list_workspaces(
     return success_response(result)
 
 
-@router.post("/workspaces", response_model=dict, dependencies=[Depends(require_permission("workspaces:write"))])
+@router.post("/workspacess", response_model=dict, dependencies=[Depends(require_permission("workspacess:write"))])
 @limiter.limit("60/minute")
 async def create_workspace(
     request: Request,
@@ -48,7 +48,7 @@ async def create_workspace(
 ):
     """Create a new workspace.
 
-    Requires: workspaces:write permission
+    Requires: workspacess:write permission
 
     Args:
         token_user: Current token and user
@@ -63,7 +63,7 @@ async def create_workspace(
     return success_response(result)
 
 
-@router.delete("/workspaces/{id}", response_model=dict, dependencies=[Depends(require_permission("workspaces:delete"))])
+@router.delete("/workspacess/{id}", response_model=dict, dependencies=[Depends(require_permission("workspacess:delete"))])
 @limiter.limit("60/minute")
 async def delete_workspace(
     request: Request,
@@ -73,7 +73,7 @@ async def delete_workspace(
 ):
     """Delete a workspace.
 
-    Requires: workspaces:delete permission
+    Requires: workspacess:delete permission
 
     Args:
         id: Workspace ID
@@ -89,7 +89,7 @@ async def delete_workspace(
     return success_response(result)
 
 
-@router.put("/workspaces/{id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspaces:admin"))])
+@router.put("/workspacess/{id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspacess:admin"))])
 @limiter.limit("60/minute")
 async def update_workspace_settings(
     request: Request,
@@ -99,7 +99,7 @@ async def update_workspace_settings(
 ):
     """Update workspace settings.
 
-    Requires: workspaces:admin permission
+    Requires: workspacess:admin permission
 
     Args:
         id: Workspace ID
