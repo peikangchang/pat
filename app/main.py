@@ -14,6 +14,7 @@ from app.common.responses import error_response
 from app.common.rate_limit import limiter
 from app.common.audit_middleware import AuditLogMiddleware
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO if not settings.debug else logging.DEBUG,
@@ -40,9 +41,35 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Custom rate limit exceeded handler
+def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Custom handler for rate limit exceeded errors.
+
+    Uses slowapi's built-in Retry-After calculation and formats response
+    according to design document.
+    """
+    # Get original response from slowapi (includes Retry-After header)
+    original_response = _rate_limit_exceeded_handler(request, exc)
+
+    # Extract Retry-After from headers
+    retry_after = int(original_response.headers.get("Retry-After", 60))
+
+    # Return response in design document format
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={
+            "success": False,
+            "error": "Too Many Requests",
+            "data": {
+                "retry_after": retry_after
+            }
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
 # Add rate limiter to app state
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
 
 # Add audit logging middleware (must be before other middlewares)
 app.add_middleware(AuditLogMiddleware)
