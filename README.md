@@ -6,14 +6,24 @@
 
 ### 技術棧
 
-- **FastAPI** - 高效能非同步 Web 框架
-- **SQLAlchemy 2.0+** - 非同步 ORM
-- **PostgreSQL 16** - 資料庫
-- **Alembic** - 資料庫遷移工具
+**核心框架：**
+- **Python 3.12** - 程式語言
+- **FastAPI 0.115.6** - 高效能非同步 Web 框架
+- **SQLAlchemy 2.0.36** - 非同步 ORM
+- **PostgreSQL 16** - 關聯式資料庫
+- **Alembic 1.14.0** - 資料庫遷移工具
+
+**部署與測試：**
 - **Docker Compose** - 容器編排
-- **Pydantic** - 資料驗證
-- **Argon2** - 密碼雜湊
-- **slowapi** - 速率限制
+- **Uvicorn 0.34.0** - ASGI 伺服器
+- **pytest 7.4.3** - 測試框架
+- **pytest-asyncio** - 非同步測試支援
+- **pytest-cov** - 測試覆蓋率報告
+
+**安全與限流：**
+- **Pydantic** - 資料驗證與序列化
+- **Argon2** - 密碼雜湊演算法
+- **slowapi** - IP 基礎速率限制
 
 ### 架構模式
 
@@ -121,6 +131,45 @@ pat/
    - 權杖安全儲存（雜湊 + 前綴）
    - 速率限制（60 req/min）
    - 完整稽核日誌
+
+## 開發環境需求
+
+### 必要環境
+
+- **Python**: 3.12 或以上
+- **Docker**: 20.10+ 與 Docker Compose V2
+- **PostgreSQL**: 16（透過 Docker 提供，或本地安裝）
+- **作業系統**: Linux、macOS、Windows (WSL2)
+
+### 本地開發設定
+
+```bash
+# 1. 安裝 Python 依賴
+pip install -r requirements.txt          # 生產依賴
+pip install -r requirements-dev.txt      # 開發與測試依賴
+
+# 2. 複製環境變數範例
+cp .env.example .env
+
+# 3. 編輯 .env 設定資料庫連線與 JWT 密鑰
+# DATABASE_URL=postgresql+asyncpg://pat_user:your_password@localhost/pat_db
+# JWT_SECRET_KEY=your-secret-key-here
+
+# 4. 啟動 PostgreSQL (使用 Docker)
+docker run -d \
+  --name pat_postgres \
+  -e POSTGRES_USER=pat_user \
+  -e POSTGRES_PASSWORD=your_password \
+  -e POSTGRES_DB=pat_db \
+  -p 5432:5432 \
+  postgres:16-alpine
+
+# 5. 執行資料庫遷移
+alembic upgrade head
+
+# 6. 啟動開發伺服器
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
 ## 執行方式
 
