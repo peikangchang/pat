@@ -10,6 +10,9 @@ echo "PAT API Test Suite"
 echo "=================================="
 echo ""
 
+echo "=== Installing test dependencies ==="
+pip install -q -r requirements-dev.txt
+
 # Phase 1: Main tests (excluding rate limiting)
 echo "Phase 1: Running main tests (173 tests)..."
 echo "----------------------------------"

@@ -72,12 +72,24 @@ pat/
 │   └── main.py                  # 應用程式入口
 ├── migrations/                  # Alembic 資料庫遷移
 ├── tests/                       # 測試套件（185 tests, 100% pass）
+│   ├── conftest.py              # pytest 配置與 fixtures
+│   ├── test_*.py                # 各項功能測試
+│   └── ...
+├── docs/                        # 專案文件
+│   ├── DEPLOYMENT.md            # 完整部署指南
+│   ├── ARCHITECTURE.md          # 架構設計文件
+│   └── design.txt               # 原始設計規格
+├── config/                      # 服務配置檔案
+│   └── pgadmin/                 # pgAdmin 自動配置
 ├── sample_data/                 # 範例 FCS 檔案
-├── uploads/                     # 上傳檔案儲存
+│   └── sample.fcs               # 系統自動載入的範例檔案
+├── uploads/                     # FCS 上傳檔案儲存目錄
 ├── docker-compose.yml           # 服務編排
 ├── Dockerfile                   # 應用程式映像
 ├── run_tests.sh                 # 測試執行腳本（分階段執行）
-└── requirements.txt             # Python 依賴
+├── requirements.txt             # Python 生產依賴
+├── requirements-dev.txt         # Python 開發與測試依賴
+└── pytest.ini                   # pytest 配置
 ```
 
 ### 核心功能
