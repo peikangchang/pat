@@ -1,5 +1,4 @@
 """Middleware for audit logging of PAT token usage."""
-import asyncio
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -23,35 +22,37 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         # (set by get_current_token_from_pat dependency)
         pat_audit_info = getattr(request.state, "pat_audit_info", None)
 
-        if pat_audit_info:
+        if pat_audit_info and pat_audit_info.get("token_id"):
+            # Only log if we have a token ID (token was found)
             # Determine if request was authorized based on status code
             authorized = 200 <= response.status_code < 300
 
             # Determine reason for failure
             reason = None
             if not authorized:
-                if response.status_code == 403:
-                    reason = "Insufficient permissions"
-                elif response.status_code == 401:
-                    reason = "Unauthorized"
-                elif response.status_code >= 500:
-                    reason = "Internal server error"
-                else:
-                    reason = f"HTTP {response.status_code}"
+                # Use specific failure reason if set (e.g., "Token revoked", "Token expired")
+                reason = pat_audit_info.get("failure_reason")
+                if not reason:
+                    # Fallback to generic reasons based on status code
+                    if response.status_code == 403:
+                        reason = "Insufficient permissions"
+                    elif response.status_code == 401:
+                        reason = "Unauthorized"
+                    elif response.status_code >= 500:
+                        reason = "Internal server error"
+                    else:
+                        reason = f"HTTP {response.status_code}"
 
-            # Log audit entry asynchronously (don't block response)
-            # Use asyncio.create_task to run in background
-            asyncio.create_task(
-                self._log_audit(
-                    session=pat_audit_info["session"],
-                    token_id=pat_audit_info["token_id"],
-                    ip_address=pat_audit_info["ip_address"],
-                    method=pat_audit_info["method"],
-                    endpoint=pat_audit_info["endpoint"],
-                    status_code=response.status_code,
-                    authorized=authorized,
-                    reason=reason,
-                )
+            # Log audit entry directly (ensure it's written before response)
+            await self._log_audit(
+                session=pat_audit_info["session"],
+                token_id=pat_audit_info["token_id"],
+                ip_address=pat_audit_info["ip_address"],
+                method=pat_audit_info["method"],
+                endpoint=pat_audit_info["endpoint"],
+                status_code=response.status_code,
+                authorized=authorized,
+                reason=reason,
             )
 
         return response

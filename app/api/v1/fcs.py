@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
-from app.common.rate_limit import limiter
+from app.common.rate_limit import limiter, RATE_LIMIT
 from app.usecase.fcs_usecase import FCSUsecase
 from .dependencies import CurrentTokenUser, require_permission
 
@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 @router.post("/fcs/upload", response_model=dict, dependencies=[Depends(require_permission("fcs:write"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def upload_fcs_file(
     request: Request,
     token_user: CurrentTokenUser,
@@ -46,6 +47,7 @@ async def upload_fcs_file(
 
 
 @router.get("/fcs/parameters", response_model=dict, dependencies=[Depends(require_permission("fcs:read"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def get_fcs_parameters(
     request: Request,
     token_user: CurrentTokenUser,
@@ -69,6 +71,7 @@ async def get_fcs_parameters(
 
 
 @router.get("/fcs/events", response_model=dict, dependencies=[Depends(require_permission("fcs:read"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def get_fcs_events(
     request: Request,
     token_user: CurrentTokenUser,
@@ -96,6 +99,7 @@ async def get_fcs_events(
 
 
 @router.get("/fcs/statistics", response_model=dict, dependencies=[Depends(require_permission("fcs:analyze"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def get_fcs_statistics(
     request: Request,
     token_user: CurrentTokenUser,

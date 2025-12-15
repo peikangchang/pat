@@ -55,7 +55,8 @@ class TestCreateToken:
         assert "id" in data
         assert data["name"] == "Test Token"
         assert data["scopes"] == ["workspacess:read"]
-        assert data["expires_in_days"] == 30
+        assert "expires_at" in data
+        assert "created_at" in data
 
     async def test_create_token_401_no_authorization_header(
         self, client: AsyncClient
@@ -86,13 +87,13 @@ class TestCreateToken:
         assert response.status_code == 401
         assert response.json()["error"] == "Unauthorized"
 
-    async def test_create_token_401_expired_jwt(self, client: AsyncClient):
+    async def test_create_token_401_expired_jwt(self, client: AsyncClient, user_a: User):
         """Test token creation with expired JWT returns 401."""
         # Create an expired JWT token
-        from app.domain.auth_service import create_jwt_token
+        from app.domain.auth_service import create_access_token
 
-        expired_jwt = create_jwt_token(
-            user_id="test-user-id",
+        expired_jwt = create_access_token(
+            user_id=user_a.id,
             expires_delta=timedelta(seconds=-1)  # Already expired
         )
 
@@ -228,12 +229,12 @@ class TestListTokens:
         assert response.status_code == 401
         assert response.json()["error"] == "Unauthorized"
 
-    async def test_list_tokens_401_expired_jwt(self, client: AsyncClient):
+    async def test_list_tokens_401_expired_jwt(self, client: AsyncClient, user_a: User):
         """Test listing tokens with expired JWT returns 401."""
-        from app.domain.auth_service import create_jwt_token
+        from app.domain.auth_service import create_access_token
 
-        expired_jwt = create_jwt_token(
-            user_id="test-user-id",
+        expired_jwt = create_access_token(
+            user_id=user_a.id,
             expires_delta=timedelta(seconds=-1)
         )
 
@@ -311,12 +312,12 @@ class TestGetToken:
         )
         assert response.status_code == 401
 
-    async def test_get_token_401_expired_jwt(self, client: AsyncClient):
+    async def test_get_token_401_expired_jwt(self, client: AsyncClient, user_a: User):
         """Test getting token with expired JWT returns 401."""
-        from app.domain.auth_service import create_jwt_token
+        from app.domain.auth_service import create_access_token
 
-        expired_jwt = create_jwt_token(
-            user_id="test-user-id",
+        expired_jwt = create_access_token(
+            user_id=user_a.id,
             expires_delta=timedelta(seconds=-1)
         )
         fake_id = uuid4()
@@ -415,12 +416,12 @@ class TestRevokeToken:
         )
         assert response.status_code == 401
 
-    async def test_revoke_token_401_expired_jwt(self, client: AsyncClient):
+    async def test_revoke_token_401_expired_jwt(self, client: AsyncClient, user_a: User):
         """Test revoking token with expired JWT returns 401."""
-        from app.domain.auth_service import create_jwt_token
+        from app.domain.auth_service import create_access_token
 
-        expired_jwt = create_jwt_token(
-            user_id="test-user-id",
+        expired_jwt = create_access_token(
+            user_id=user_a.id,
             expires_delta=timedelta(seconds=-1)
         )
         fake_id = uuid4()
@@ -507,12 +508,12 @@ class TestGetTokenLogs:
         )
         assert response.status_code == 401
 
-    async def test_get_token_logs_401_expired_jwt(self, client: AsyncClient):
+    async def test_get_token_logs_401_expired_jwt(self, client: AsyncClient, user_a: User):
         """Test getting logs with expired JWT returns 401."""
-        from app.domain.auth_service import create_jwt_token
+        from app.domain.auth_service import create_access_token
 
-        expired_jwt = create_jwt_token(
-            user_id="test-user-id",
+        expired_jwt = create_access_token(
+            user_id=user_a.id,
             expires_delta=timedelta(seconds=-1)
         )
         fake_id = uuid4()

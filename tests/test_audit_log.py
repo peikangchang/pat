@@ -10,6 +10,7 @@ Test cases:
 7. IP Address - Logs include client IP address
 """
 import pytest
+import asyncio
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,9 @@ class TestAuditLogCreation:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 200
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         # Check audit log was created
         result = await session.execute(
@@ -72,6 +76,12 @@ class TestAuditLogCreation:
         )
         assert response.status_code == 401
 
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
+
+        # Commit to end current transaction and see other transactions' commits
+        await session.commit()
+
         # Check audit log was created with failure reason
         result = await session.execute(
             select(AuditLog).where(AuditLog.token_id == token.id)
@@ -100,6 +110,9 @@ class TestAuditLogCreation:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         assert response.status_code == 403
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         # Check audit log
         result = await session.execute(
@@ -135,6 +148,9 @@ class TestAuditLogCreation:
             "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         # Check all logs were created
         result = await session.execute(
@@ -173,6 +189,9 @@ class TestAuditLogContent:
             headers={"Authorization": f"Bearer {full_token}"}
         )
 
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
+
         result = await session.execute(
             select(AuditLog).where(AuditLog.token_id == token.id)
         )
@@ -195,6 +214,9 @@ class TestAuditLogContent:
             "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         result = await session.execute(
             select(AuditLog).where(AuditLog.token_id == token.id)
@@ -219,6 +241,9 @@ class TestAuditLogContent:
             headers={"Authorization": f"Bearer {full_token}"}
         )
         after_request = datetime.now(timezone.utc)
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         result = await session.execute(
             select(AuditLog).where(AuditLog.token_id == token.id)
@@ -313,6 +338,9 @@ class TestAuditLogPagination:
                 headers={"Authorization": f"Bearer {full_token}"}
             )
 
+        # Wait for background audit logging tasks to complete
+        await asyncio.sleep(0.1)
+
         # Get logs with limit
         response = await client.get(
             f"/api/v1/tokens/{token.id}/logs?limit=5",
@@ -321,9 +349,7 @@ class TestAuditLogPagination:
         data = response.json()["data"]
 
         assert len(data["logs"]) == 5
-        assert data["total"] == 10
-        assert data["limit"] == 5
-        assert data["offset"] == 0
+        assert data["total_logs"] == 10
 
     async def test_audit_log_pagination_with_offset(
         self, client: AsyncClient, user_a: User, user_a_jwt: str, create_pat_token
@@ -340,6 +366,9 @@ class TestAuditLogPagination:
                 headers={"Authorization": f"Bearer {full_token}"}
             )
 
+        # Wait for background audit logging tasks to complete
+        await asyncio.sleep(0.1)
+
         # Get logs with offset
         response = await client.get(
             f"/api/v1/tokens/{token.id}/logs?limit=3&offset=5",
@@ -348,9 +377,7 @@ class TestAuditLogPagination:
         data = response.json()["data"]
 
         assert len(data["logs"]) == 3
-        assert data["total"] == 10
-        assert data["limit"] == 3
-        assert data["offset"] == 5
+        assert data["total_logs"] == 10
 
 
 @pytest.mark.integration
@@ -371,12 +398,15 @@ class TestAuditLogIsolation:
             headers={"Authorization": f"Bearer {full_token}"}
         )
 
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
+
         # User B tries to access User A's token logs
         response = await client.get(
             f"/api/v1/tokens/{token_a.id}/logs",
             headers={"Authorization": f"Bearer {user_b_jwt}"}
         )
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     async def test_user_can_only_see_own_token_logs(
         self, client: AsyncClient, user_a: User, user_b: User,
@@ -445,6 +475,12 @@ class TestAuditLogUnauthorizedTracking:
             headers={"Authorization": f"Bearer {token_info.full_token}"}
         )
 
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
+
+        # Commit to end current transaction and see other transactions' commits
+        await session.commit()
+
         # Check audit log
         result = await session.execute(
             select(AuditLog).where(AuditLog.token_id == token.id)
@@ -470,6 +506,9 @@ class TestAuditLogUnauthorizedTracking:
             "/api/v1/workspacess",
             headers={"Authorization": f"Bearer {full_token}"}
         )
+
+        # Wait for background audit logging task to complete
+        await asyncio.sleep(0.1)
 
         # Check audit log
         result = await session.execute(

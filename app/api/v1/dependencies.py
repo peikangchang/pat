@@ -5,7 +5,13 @@ from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
-from app.common.exceptions import UnauthorizedException, ForbiddenException
+from app.common.exceptions import (
+    UnauthorizedException,
+    ForbiddenException,
+    TokenRevokedException,
+    TokenExpiredException,
+    InvalidTokenException,
+)
 from app.domain.permissions import has_permission
 from app.usecase.auth_usecase import AuthUsecase
 from app.models.user import User
@@ -80,25 +86,61 @@ async def get_current_token_from_pat(
     method = request.method
     endpoint = str(request.url.path)
 
-    # Delegate to usecase (business logic layer)
-    auth_usecase = AuthUsecase(session)
-    token, user = await auth_usecase.authenticate_pat(
-        pat_token=pat_token,
-        client_ip=client_ip,
-        method=method,
-        endpoint=endpoint,
-    )
-
-    # Store token info and session in request state for audit logging middleware
+    # Pre-populate audit info with request details (token_id will be set if auth succeeds)
     request.state.pat_audit_info = {
-        "token_id": token.id,
+        "token_id": None,  # Will be set if token is found
         "ip_address": client_ip,
         "method": method,
         "endpoint": endpoint,
-        "session": session,  # Store session for audit logging in same session
+        "session": session,
+        "failure_reason": None,  # Will be set if authentication fails
     }
 
-    return token, user
+    # Delegate to usecase (business logic layer)
+    auth_usecase = AuthUsecase(session)
+    try:
+        token, user = await auth_usecase.authenticate_pat(
+            pat_token=pat_token,
+            client_ip=client_ip,
+            method=method,
+            endpoint=endpoint,
+        )
+        # Update with token ID on successful authentication
+        request.state.pat_audit_info["token_id"] = token.id
+        return token, user
+    except TokenRevokedException as e:
+        # Token was found but is revoked
+        await _set_audit_info_for_failed_auth(session, pat_token, "Token revoked", request)
+        raise
+    except TokenExpiredException as e:
+        # Token was found but is expired
+        await _set_audit_info_for_failed_auth(session, pat_token, "Token expired", request)
+        raise
+    except InvalidTokenException as e:
+        # Token not found or invalid
+        await _set_audit_info_for_failed_auth(session, pat_token, "Invalid token", request)
+        raise
+
+
+async def _set_audit_info_for_failed_auth(
+    session: AsyncSession, pat_token: str, reason: str, request: Request
+) -> None:
+    """Set audit info for failed authentication attempts."""
+    from app.domain.token_service import hash_token
+    from app.repository.token_repository import TokenRepository
+
+    token_hash = hash_token(pat_token)
+    token_repo = TokenRepository(session)
+
+    try:
+        async with session.begin():
+            _, token = await token_repo.is_valid(token_hash)
+            if token:
+                request.state.pat_audit_info["token_id"] = token.id
+                request.state.pat_audit_info["failure_reason"] = reason
+    except Exception:
+        # If we can't get the token, just skip audit logging for this request
+        pass
 
 
 def require_permission(required_scope: str):

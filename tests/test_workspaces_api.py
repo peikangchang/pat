@@ -54,28 +54,27 @@ class TestListWorkspaces:
         assert response.json()["error"] == "Unauthorized"
 
     async def test_list_workspaces_401_expired_token(
-        self, client: AsyncClient, user_a: User, create_pat_token
+        self, client: AsyncClient, session, user_a: User, create_pat_token
     ):
         """Test listing workspaces with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         # Create an expired token
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["workspacess:read"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspacess:read"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.get(
             "/api/v1/workspacess",
@@ -152,27 +151,26 @@ class TestCreateWorkspace:
         assert response.status_code == 401
 
     async def test_create_workspace_401_expired_token(
-        self, client: AsyncClient, user_a: User, create_pat_token
+        self, client: AsyncClient, session, user_a: User, create_pat_token
     ):
         """Test creating workspace with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["workspacess:write"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspacess:write"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.post(
             "/api/v1/workspacess",
@@ -243,27 +241,26 @@ class TestDeleteWorkspace:
         assert response.status_code == 401
 
     async def test_delete_workspace_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test deleting workspace with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["workspacess:delete"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspacess:delete"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.delete(
             "/api/v1/workspacess/test-id",
@@ -342,27 +339,26 @@ class TestUpdateWorkspaceSettings:
         assert response.status_code == 401
 
     async def test_update_settings_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test updating settings with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["workspacess:admin"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["workspacess:admin"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.put(
             "/api/v1/workspacess/test-id/settings",

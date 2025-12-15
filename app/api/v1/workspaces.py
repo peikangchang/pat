@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
-from app.common.rate_limit import limiter
+from app.common.rate_limit import limiter, RATE_LIMIT
 from app.usecase.workspace_usecase import WorkspaceUsecase
 from .dependencies import CurrentTokenUser, require_permission
 
@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 @router.get("/workspacess", response_model=dict, dependencies=[Depends(require_permission("workspacess:read"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def list_workspaces(
     request: Request,
     token_user: CurrentTokenUser,
@@ -39,6 +40,7 @@ async def list_workspaces(
 
 
 @router.post("/workspacess", response_model=dict, dependencies=[Depends(require_permission("workspacess:write"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def create_workspace(
     request: Request,
     token_user: CurrentTokenUser,
@@ -62,6 +64,7 @@ async def create_workspace(
 
 
 @router.delete("/workspacess/{id}", response_model=dict, dependencies=[Depends(require_permission("workspacess:delete"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def delete_workspace(
     request: Request,
     id: str,
@@ -87,6 +90,7 @@ async def delete_workspace(
 
 
 @router.put("/workspacess/{id}/settings", response_model=dict, dependencies=[Depends(require_permission("workspacess:admin"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def update_workspace_settings(
     request: Request,
     id: str,

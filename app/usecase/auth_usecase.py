@@ -1,7 +1,10 @@
 """Authentication usecase for user registration and login."""
+import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 import jwt
+
+logger = logging.getLogger(__name__)
 
 from app.common.exceptions import (
     UnauthorizedException,
@@ -164,11 +167,9 @@ class AuthUsecase:
             is_valid, token = await self.token_repo.is_valid(token_hash)
 
             if not is_valid or not token:
-                # Log failed access if token exists
+                # Raise specific exception based on failure reason
+                # Audit logging is handled by AuditLogMiddleware after response
                 if token:
-                    await self._log_failed_access(token, client_ip, method, endpoint)
-
-                    # Raise specific exception based on failure reason
                     if token.is_revoked:
                         raise TokenRevokedException()
                     elif datetime.now(timezone.utc) > token.expires_at:
@@ -187,43 +188,3 @@ class AuthUsecase:
             # Auto-commit on success
 
             return token, user
-
-    async def _log_failed_access(
-        self,
-        token: Token,
-        client_ip: str,
-        method: str,
-        endpoint: str,
-    ) -> None:
-        """Log failed PAT access attempt.
-
-        Args:
-            token: Token object
-            client_ip: Client IP address
-            method: HTTP method
-            endpoint: API endpoint
-        """
-        # Determine failure reason
-        if token.is_revoked:
-            reason = "Token revoked"
-        elif datetime.now(timezone.utc) > token.expires_at:
-            reason = "Token expired"
-        else:
-            reason = "Invalid token"
-
-        # Create audit log in independent transaction
-        try:
-            async with self.session.begin():
-                await self.audit_repo.create(
-                    token_id=token.id,
-                    ip_address=client_ip,
-                    method=method,
-                    endpoint=endpoint,
-                    status_code=401,
-                    authorized=False,
-                    reason=reason,
-                )
-                # Auto-commit on success
-        except Exception:
-            # Don't let audit logging errors affect authentication
-            pass

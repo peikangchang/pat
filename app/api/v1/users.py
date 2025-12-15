@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
-from app.common.rate_limit import limiter
+from app.common.rate_limit import limiter, RATE_LIMIT
 from app.usecase.user_usecase import UserUsecase
 from .dependencies import CurrentTokenUser, require_permission
 
@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 @router.get("/users/me", response_model=dict, dependencies=[Depends(require_permission("users:read"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def get_current_user(
     request: Request,
     token_user: CurrentTokenUser,
@@ -35,6 +36,7 @@ async def get_current_user(
 
 
 @router.put("/users/me", response_model=dict, dependencies=[Depends(require_permission("users:write"))])
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def update_current_user(
     request: Request,
     token_user: CurrentTokenUser,

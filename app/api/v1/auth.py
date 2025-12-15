@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.database import get_db
 from app.common.responses import success_response
-from app.common.rate_limit import limiter
+from app.common.rate_limit import limiter, RATE_LIMIT
 from app.domain.schemas import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse
 from app.usecase.auth_usecase import AuthUsecase
 
@@ -12,6 +12,7 @@ router = APIRouter()
 
 
 @router.post("/auth/register", response_model=dict)
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def register(
     request: Request,
     user_request: UserRegisterRequest,
@@ -33,6 +34,7 @@ async def register(
 
 
 @router.post("/auth/login", response_model=dict)
+@limiter.shared_limit(RATE_LIMIT, scope="global")
 async def login(
     request: Request,
     login_request: UserLoginRequest,

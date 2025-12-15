@@ -1,7 +1,10 @@
 """Token usecase for PAT management."""
+import logging
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.common.exceptions import (
     NotFoundException,
@@ -262,8 +265,8 @@ class TokenUsecase:
             reason: Optional reason for failure
         """
         try:
-            # Use session.begin() to start a new, independent transaction
-            # This won't commit any pending operations from previous transactions
+            # Create audit log in a transaction
+            # Use begin() - works whether session is in transaction or not
             async with self.session.begin():
                 await self.audit_repo.create(
                     token_id=token_id,
@@ -274,9 +277,7 @@ class TokenUsecase:
                     authorized=authorized,
                     reason=reason,
                 )
-                # Automatically commits on successful exit from context
-        except Exception:
-            # Automatically rolls back on exception
-            # Don't let audit logging errors affect the response
-            # Just silently fail (could log to application logs in production)
-            pass
+                # Auto-commit on context exit
+        except Exception as e:
+            # Don't let audit logging errors affect anything
+            logger.error(f"Failed to log token usage: {e}", exc_info=True)

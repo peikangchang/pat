@@ -347,28 +347,27 @@ class TestFCSUpload401:
         assert response.json()["error"] == "Unauthorized"
 
     async def test_upload_fcs_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test uploading FCS file with expired PAT token returns 401."""
         from datetime import datetime, timedelta, timezone
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["fcs:write"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["fcs:write"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         filename, content = create_mock_fcs_file()
         files = {"file": (filename, io.BytesIO(content), "application/octet-stream")}
@@ -423,28 +422,27 @@ class TestFCSParameters401:
         assert response.json()["error"] == "Unauthorized"
 
     async def test_get_parameters_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test getting FCS parameters with expired PAT token returns 401."""
         from datetime import datetime, timedelta, timezone
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["fcs:read"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["fcs:read"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.get(
             "/api/v1/fcs/parameters",
@@ -491,28 +489,27 @@ class TestFCSEvents401:
         assert response.json()["error"] == "Unauthorized"
 
     async def test_get_events_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test getting FCS events with expired PAT token returns 401."""
         from datetime import datetime, timedelta, timezone
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["fcs:read"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["fcs:read"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.get(
             "/api/v1/fcs/events",
@@ -559,28 +556,27 @@ class TestFCSStatistics401:
         assert response.json()["error"] == "Unauthorized"
 
     async def test_get_statistics_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test getting FCS statistics with expired PAT token returns 401."""
         from datetime import datetime, timedelta, timezone
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["fcs:analyze"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["fcs:analyze"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.get(
             "/api/v1/fcs/statistics",

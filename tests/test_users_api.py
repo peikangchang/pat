@@ -51,27 +51,26 @@ class TestGetCurrentUser:
         assert response.status_code == 401
 
     async def test_get_current_user_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test getting current user with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["users:read"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["users:read"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.get(
             "/api/v1/users/me",
@@ -143,27 +142,26 @@ class TestUpdateCurrentUser:
         assert response.status_code == 401
 
     async def test_update_current_user_401_expired_token(
-        self, client: AsyncClient, user_a: User
+        self, client: AsyncClient, session, user_a: User
     ):
         """Test updating current user with expired PAT token returns 401."""
         from app.domain.token_service import create_token_info
         from app.models.token import Token
-        from app.common.database import async_session_maker
 
         token_info = create_token_info()
         expired_at = datetime.now(timezone.utc) - timedelta(days=1)
 
-        async with async_session_maker() as session:
-            async with session.begin():
-                token = Token(
-                    user_id=user_a.id,
-                    name="Expired Token",
-                    token_hash=token_info.token_hash,
-                    token_prefix=token_info.token_prefix,
-                    scopes=["users:write"],
-                    expires_at=expired_at,
-                )
-                session.add(token)
+        token = Token(
+            user_id=user_a.id,
+            name="Expired Token",
+            token_hash=token_info.token_hash,
+            token_prefix=token_info.token_prefix,
+            scopes=["users:write"],
+            expires_at=expired_at,
+        )
+        session.add(token)
+        await session.commit()
+        await session.refresh(token)
 
         response = await client.put(
             "/api/v1/users/me",
