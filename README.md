@@ -86,10 +86,13 @@ pat/
 ├── uploads/                     # FCS 上傳檔案儲存目錄
 ├── docker-compose.yml           # 服務編排
 ├── Dockerfile                   # 應用程式映像
+├── alembic.ini                  # Alembic 資料庫遷移配置
+├── .env                         # 環境變數（不提交到 git）
+├── .env.example                 # 環境變數範例檔案
 ├── run_tests.sh                 # 測試執行腳本（分階段執行）
+├── pytest.ini                   # pytest 測試配置
 ├── requirements.txt             # Python 生產依賴
-├── requirements-dev.txt         # Python 開發與測試依賴
-└── pytest.ini                   # pytest 配置
+└── requirements-dev.txt         # Python 開發與測試依賴
 ```
 
 ### 核心功能
