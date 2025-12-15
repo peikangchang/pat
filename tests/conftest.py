@@ -119,7 +119,23 @@ async def test_db():
 
     # Cleanup
     app.dependency_overrides.clear()
-    limiter.enabled = True
+
+    # Ensure limiter is disabled
+    limiter.enabled = False
+
+    # Clear rate limit storage to prevent test pollution
+    if hasattr(limiter, '_limiter') and hasattr(limiter._limiter, 'storage'):
+        storage = limiter._limiter.storage
+        # Clear all internal data structures
+        if hasattr(storage, 'reset'):
+            storage.reset()
+        if hasattr(storage, 'storage'):
+            storage.storage.clear()
+        if hasattr(storage, 'expirations'):
+            storage.expirations.clear()
+        if hasattr(storage, 'events'):
+            storage.events.clear()
+
     await engine.dispose()
 
 
@@ -131,6 +147,46 @@ async def client(test_db) -> AsyncGenerator[AsyncClient, None]:
         base_url="http://test"
     ) as client:
         yield client
+
+
+@pytest.fixture
+def rate_limit_test():
+    """Fixture for rate limiting tests that ensures clean storage."""
+    from app.common.rate_limit import limiter
+
+    # Save original state
+    original_enabled = limiter.enabled
+
+    # Enable limiter for rate limit tests
+    limiter.enabled = True
+
+    # Clear storage before test
+    if hasattr(limiter, '_limiter') and hasattr(limiter._limiter, 'storage'):
+        storage = limiter._limiter.storage
+        if hasattr(storage, 'reset'):
+            storage.reset()
+        if hasattr(storage, 'storage'):
+            storage.storage.clear()
+        if hasattr(storage, 'expirations'):
+            storage.expirations.clear()
+        if hasattr(storage, 'events'):
+            storage.events.clear()
+
+    yield limiter
+
+    # Restore state and clear storage after test
+    limiter.enabled = original_enabled
+
+    if hasattr(limiter, '_limiter') and hasattr(limiter._limiter, 'storage'):
+        storage = limiter._limiter.storage
+        if hasattr(storage, 'reset'):
+            storage.reset()
+        if hasattr(storage, 'storage'):
+            storage.storage.clear()
+        if hasattr(storage, 'expirations'):
+            storage.expirations.clear()
+        if hasattr(storage, 'events'):
+            storage.events.clear()
 
 
 @pytest.fixture

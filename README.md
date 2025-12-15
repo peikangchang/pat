@@ -71,11 +71,12 @@ pat/
 │   │   └── startup.py           # 應用程式初始化
 │   └── main.py                  # 應用程式入口
 ├── migrations/                  # Alembic 資料庫遷移
-├── tests/                       # 測試套件（68 tests, 100% pass）
+├── tests/                       # 測試套件（185 tests, 100% pass）
 ├── sample_data/                 # 範例 FCS 檔案
 ├── uploads/                     # 上傳檔案儲存
 ├── docker-compose.yml           # 服務編排
 ├── Dockerfile                   # 應用程式映像
+├── run_tests.sh                 # 測試執行腳本（分階段執行）
 └── requirements.txt             # Python 依賴
 ```
 
@@ -178,8 +179,8 @@ docker compose down -v
 # 查看資料庫
 docker compose exec postgres psql -U pat_user -d pat_db
 
-# 執行測試
-pytest tests/ -v
+# 執行測試（推薦使用腳本）
+./run_tests.sh
 
 # 建立新的資料庫遷移
 alembic revision --autogenerate -m "描述"
@@ -855,13 +856,26 @@ environment:
 
 ### 測試
 
-- **73 個測試，100% 通過率**
-- 涵蓋：權限、權杖生命週期、安全、使用者隔離、FCS API、狀態碼、速率限制配置
+- **185 個測試，100% 通過率**
+- 涵蓋：權限、權杖生命週期、安全、使用者隔離、FCS API、狀態碼、稽核日誌、速率限制
+
+**重要：速率限制測試需分開執行**
+
+由於速率限制測試使用 1 分鐘時間窗口，會影響其他測試。請分開執行：
 
 ```bash
-pytest tests/ -v                          # 執行所有測試
-pytest tests/ -v --cov=app               # 顯示覆蓋率
+# 方法 1: 使用測試腳本（推薦）
+./run_tests.sh                           # 自動執行所有測試（分兩階段）
+
+# 方法 2: 手動分開執行
+pytest tests/ --ignore=tests/test_rate_limiting.py -v    # 主要測試 (173 tests)
+pytest tests/test_rate_limiting.py -v                     # 速率限制測試 (12 tests)
+
+# 其他選項
+pytest tests/ --ignore=tests/test_rate_limiting.py --cov=app --cov-report=term-missing
 pytest -m permissions                    # 只執行權限測試
+pytest -m security                       # 只執行安全測試
+pytest -m isolation                      # 只執行隔離測試
 ```
 
 ### 部署
